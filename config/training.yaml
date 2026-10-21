@@ -1,0 +1,30 @@
+# STRATOS AI - Multi-Agent Reinforcement Learning (PPO) Configuration
+
+algorithm: "PPO"
+
+network:
+  hidden_dims: [128, 128]
+  activation: "tanh"
+
+hyperparameters:
+  learning_rate: 0.0003
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_eps: 0.2
+  value_loss_coef: 0.5
+  entropy_coef: 0.01
+  max_grad_norm: 0.5
+  ppo_epochs: 4
+  batch_size: 64
+
+training:
+  rollout_steps: 600
+  total_timesteps: 30000
+  save_interval_steps: 5000
+  log_interval_episodes: 5
+  seed: 42
+  device: "auto" # Will detect cuda if available, else cpu
+
+paths:
+  checkpoints_dir: "artifacts/checkpoints"
+  experiments_dir: "artifacts/experiments"

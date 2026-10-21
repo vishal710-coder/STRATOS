@@ -1,0 +1,39 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Artifacts & Checkpoints
+artifacts/checkpoints/*.pt
+!artifacts/checkpoints/stratos_policy_candidate_fix_5000step.pt
+!artifacts/checkpoints/stratos_policy_latest.pt
+!artifacts/checkpoints/.gitkeep
+artifacts/experiments/*.csv
+artifacts/experiments/*.json
+!artifacts/experiments/multiseed_candidate_evaluation_summary.json
+!artifacts/experiments/.gitkeep
+
+# Media files
+*.mp4
+*.avi
+*.mov
+
+# System logs
+*.log

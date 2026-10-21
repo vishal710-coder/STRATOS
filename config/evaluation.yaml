@@ -1,0 +1,35 @@
+# STRATOS AI - Evaluation and Benchmarking Configuration
+
+evaluation:
+  episodes_per_scenario: 20
+  seed: 12345
+  max_steps: 300
+
+scenarios:
+  - name: "Baseline_vs_Aggressive"
+    coordination_mode: "independent"
+    opponent_strategy: "aggressive"
+
+  - name: "Coordinated_vs_Aggressive"
+    coordination_mode: "coordinated"
+    opponent_strategy: "aggressive"
+
+  - name: "Baseline_vs_Defensive"
+    coordination_mode: "independent"
+    opponent_strategy: "defensive"
+
+  - name: "Coordinated_vs_Defensive"
+    coordination_mode: "coordinated"
+    opponent_strategy: "defensive"
+
+  - name: "Baseline_vs_Resource"
+    coordination_mode: "independent"
+    opponent_strategy: "resource_focused"
+
+  - name: "Coordinated_vs_Resource"
+    coordination_mode: "coordinated"
+    opponent_strategy: "resource_focused"
+
+output:
+  results_csv: "artifacts/experiments/evaluation_results.csv"
+  summary_json: "artifacts/experiments/evaluation_summary.json"

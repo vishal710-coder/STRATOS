@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>STRATOS AI — Internal Project Progress Review Guide</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --heading: #f0f6fc;
+      --accent: #58a6ff;
+      --accent-subtle: rgba(56, 139, 253, 0.15);
+      --green: #3fb950;
+      --green-subtle: rgba(63, 185, 80, 0.15);
+      --purple: #bc8cff;
+      --orange: #f0883e;
+      --code-bg: #0b0e14;
+    }
+    @media print {
+      body {
+        background: white !important;
+        color: #111 !important;
+        font-size: 11pt;
+      }
+      .card, table, pre {
+        border-color: #ddd !important;
+        background: #fdfdfd !important;
+        color: #111 !important;
+        page-break-inside: avoid;
+      }
+      .no-print { display: none !important; }
+      h1, h2, h3 { color: #000 !important; }
+      a { color: #0366d6 !important; }
+      th { background-color: #f0f0f0 !important; color: #000 !important; }
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    header {
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 25px;
+      margin-bottom: 35px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      border-radius: 20px;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+    .badge-blue { background: var(--accent-subtle); color: var(--accent); border: 1px solid var(--accent); }
+    .badge-green { background: var(--green-subtle); color: var(--green); border: 1px solid var(--green); }
+    .badge-purple { background: rgba(188, 140, 255, 0.15); color: var(--purple); border: 1px solid var(--purple); }
+    h1 { color: var(--heading); font-size: 2.4rem; margin: 10px 0; }
+    h2 { color: var(--accent); font-size: 1.6rem; margin-top: 40px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    h3 { color: var(--heading); font-size: 1.25rem; margin-top: 25px; }
+    p, li { color: var(--text); font-size: 1.02rem; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin: 20px 0;
+    }
+    .card-highlight {
+      border-left: 4px solid var(--green);
+      background: rgba(63, 185, 80, 0.05);
+    }
+    .card-accent {
+      border-left: 4px solid var(--accent);
+      background: rgba(56, 139, 253, 0.05);
+    }
+    .card-warn {
+      border-left: 4px solid var(--orange);
+      background: rgba(240, 136, 62, 0.05);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      text-align: left;
+    }
+    th {
+      background-color: rgba(255, 255, 255, 0.04);
+      color: var(--heading);
+      font-weight: 600;
+    }
+    tr:nth-child(even) { background-color: rgba(255, 255, 255, 0.015); }
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #79c0ff;
+      font-size: 0.92em;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 18px;
+      overflow-x: auto;
+      font-family: Consolas, "Courier New", monospace;
+      color: #e6edf3;
+      font-size: 0.92rem;
+    }
+    .btn-print {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--accent);
+      color: #0b0e14;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 18px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    .btn-print:hover { background: #79c0ff; }
+    .qa-box {
+      margin-bottom: 24px;
+      padding: 18px 22px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .qa-q {
+      font-weight: bold;
+      color: #ffa657;
+      font-size: 1.08rem;
+      margin-bottom: 8px;
+    }
+    .qa-a {
+      color: var(--text);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<button class="btn-print no-print" onclick="window.print()">🖨️ Save as PDF / Print</button>
+
+<div class="container">
+  <header>
+    <div>
+      <span class="badge badge-blue">NEXUS AI Research Lab</span>
+      <span class="badge badge-green">Audited & Verified: 150 Benchmark Episodes</span>
+      <span class="badge badge-purple">Multi-Agent RL & Simulation</span>
+    </div>
+    <h1>STRATOS AI: Strategic Team Reasoning & Tactical Operations</h1>
+    <p style="font-size: 1.2rem; color: #8b949e; margin: 5px 0 0 0;">
+      <strong>Comprehensive Internal Project Review & Tutor Defense Master Guide</strong>
+    </p>
+  </header>
+
+  <div class="card card-highlight">
+    <h3 style="margin-top:0; color: var(--green);">⚡ 60-Second "Elevator Pitch" for Tomorrow's Review</h3>
+    <p><em>(Give this exact 1-minute answer when tutors ask: "What is your project about and what have you accomplished?")</em></p>
+    <blockquote style="margin: 0; font-size: 1.05rem; line-height: 1.7; color: #f0f6fc; border-left: 3px solid var(--green); padding-left: 15px;">
+      "Our project is <strong>STRATOS AI</strong>, an autonomous multi-agent reinforcement learning system designed to solve a critical open problem in AI: <strong>Does real-time communication between specialized AI agents improve their coordination and tactical performance against complex opponents compared to agents operating independently?</strong><br><br>
+      We built a custom top-down real-time strategy environment adhering to <strong>PettingZoo Parallel API</strong> standards. On this battlefield, a squad of three specialized friendly agents (a <strong>Commander</strong>, a <strong>Defense Guard</strong>, and an <strong>Attack Striker</strong>) collaborate to defend their base, harvest crystals, and defeat hostile squads.<br><br>
+      The agents are governed by a deep Actor-Critic policy trained using <strong>Proximal Policy Optimization (PPO)</strong> coupled with an inter-agent <strong>Tactical Communication Bus</strong>. In our multi-seed benchmark of 150 episodes across 5 seeds, coordinated agents achieved a <strong>100% win rate</strong> compared to <strong>66.7%</strong> for independent agents (+33.3% communication advantage). Most notably, against aggressive rush attacks, independent agents suffered a 100% wipeout loss (0% win rate), while coordinated agents communicated base-defense directives to win 100% of matches."
+    </blockquote>
+  </div>
+
+  <h2>🎮 1. The Game Concept & Battlefield Mechanics</h2>
+  <p>STRATOS is inspired by classic RTS games (like <em>StarCraft</em>), designed as a mathematical MARL testbed:</p>
+  <ul>
+    <li><strong>Arena Size</strong>: 800 &times; 600 continuous 2D coordinates with bounded edges.</li>
+    <li><strong>Friendly HQ</strong>: (80, 300) with 1,000 HP. If lost, friendly team loses.</li>
+    <li><strong>Enemy HQ</strong>: (720, 300) with 1,000 HP. If destroyed, friendly team wins.</li>
+    <li><strong>Crystal Depots (Resources)</strong>: Three contested mining nodes at North (400, 150), Center (400, 300), and South (400, 450). Units mine resources by positioning over them.</li>
+    <li><strong>Squad Composition</strong>:
+      <ul>
+        <li><strong>Commander</strong> (280 HP, 3.2 speed): Strategic priority issuer & resource manager.</li>
+        <li><strong>Defense Guard</strong> (380 HP tank, 2.6 speed): High armor base anchor, shields the HQ.</li>
+        <li><strong>Attack Striker</strong> (220 HP scout, 3.8 speed, 32 dmg): High-damage flanker & siege specialist.</li>
+      </ul>
+    </li>
+    <li><strong>Three Opponent Types</strong>:
+      <ol>
+        <li><strong>Aggressive Rush</strong>: Directly attacks friendly HQ with no resource harvesting.</li>
+        <li><strong>Defensive Turtle</strong>: Tightly guards the enemy base perimeter (150px radius).</li>
+        <li><strong>Resource-Focused</strong>: Mines central crystal deposits to 100 units before transitioning to an assault.</li>
+      </ol>
+    </li>
+  </ul>
+
+  <h2>🛠️ 2. The Complete Technical Stack</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Component</th>
+        <th>Technology</th>
+        <th>Role in STRATOS</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Core Language</strong></td>
+        <td>Python 3.11+</td>
+        <td>Primary environment, agent logic, and simulation engine.</td>
+      </tr>
+      <tr>
+        <td><strong>Deep Learning</strong></td>
+        <td>PyTorch (<code>torch.nn</code>, <code>Adam</code>)</td>
+        <td>Actor-Critic Policy network, PPO loss computation, backpropagation.</td>
+      </tr>
+      <tr>
+        <td><strong>MARL Standard</strong></td>
+        <td>PettingZoo (Parallel API) & Gymnasium</td>
+        <td>Multi-agent step execution, decentralized observations, individual rewards.</td>
+      </tr>
+      <tr>
+        <td><strong>RL Algorithm</strong></td>
+        <td>PPO + GAE-&lambda;</td>
+        <td>On-policy Actor-Critic with clipped surrogate loss and value estimation.</td>
+      </tr>
+      <tr>
+        <td><strong>Visualization</strong></td>
+        <td>Pygame</td>
+        <td>Real-time 60 FPS battlefield canvas, lasers, HUD telemetry, live radio ticker.</td>
+      </tr>
+      <tr>
+        <td><strong>Analytics UI</strong></td>
+        <td>Streamlit, Pandas, Matplotlib</td>
+        <td>Interactive research dashboard showing win rates, learning curves, and distributions.</td>
+      </tr>
+      <tr>
+        <td><strong>Quality Assurance</strong></td>
+        <td>Pytest</td>
+        <td>20 automated unit & integration tests passing at 100%.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>🏛️ 3. System Architecture & Information Pipeline</h2>
+  <div class="card card-accent">
+    <h3>The 49-Dimensional Observation Vector</h3>
+    <p>Every step, each agent receives a normalized vector in <code>[-1.0, 1.0]</code>:</p>
+    <ul>
+      <li><strong>Channels 0–4 (Self State)</strong>: (x<sub>norm</sub>, y<sub>norm</sub>, HP ratio, cooldown ratio, alive flag)</li>
+      <li><strong>Channels 5–7 (Friendly HQ)</strong>: (x<sub>norm</sub>, y<sub>norm</sub>, HP ratio)</li>
+      <li><strong>Channels 8–10 (Enemy HQ)</strong>: (x<sub>norm</sub>, y<sub>norm</sub>, HP ratio)</li>
+      <li><strong>Channels 11–18 (2 Teammates)</strong>: 2 &times; (&Delta;x, &Delta;y, HP ratio, alive flag)</li>
+      <li><strong>Channels 19–30 (3 Enemies)</strong>: 3 &times; (&Delta;x, &Delta;y, HP ratio, alive flag)</li>
+      <li><strong>Channels 31–39 (3 Resource Nodes)</strong>: 3 &times; (&Delta;x, &Delta;y, crystal ratio)</li>
+      <li><strong>Channels 40–42 (Global State)</strong>: Friendly crystals, enemy crystals, episode step ratio</li>
+      <li><strong>Channels 43–48 (Tactical Comm Bus)</strong>: Directive code, threat level, target &Delta;x, target &Delta;y, support flag, message priority</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>The 7 Discrete Macro-Actions</h3>
+    <p><code>HOLD (0)</code> &bull; <code>MOVE_BASE (1)</code> &bull; <code>MOVE_ENEMY_BASE (2)</code> &bull; <code>MOVE_RESOURCE (3)</code> &bull; <code>ATTACK_NEAREST_ENEMY (4)</code> &bull; <code>DEFEND_PERIMETER (5)</code> &bull; <code>TACTICAL_RETREAT (6)</code></p>
+  </div>
+
+  <h2>📡 4. The Inter-Agent Communication Bus & 15-Step Decay</h2>
+  <p>STRATOS uses a <strong>structured symbolic messaging bus</strong> rather than black-box latent vectors:</p>
+  <ul>
+    <li><strong>Messages Supported</strong>: <code>ENEMY_DETECTED</code>, <code>DEFEND_BASE</code>, <code>REQUEST_SUPPORT</code>, <code>ATTACK_TARGET</code>, <code>RESOURCE_LOW</code>, <code>RESUME_OFFENSE</code>.</li>
+    <li><strong>Why Symbolic?</strong> 100% human-interpretable in real time, low bandwidth, and zero black-box obscurity.</li>
+    <li><strong>15-Step Temporal Freshness Decay</strong>: In early builds, emergency support alerts stayed in inboxes forever, locking units into defensive loops. We engineered a decay filter where messages older than 15 steps are discarded.</li>
+  </ul>
+
+  <h2>📊 5. Empirical Benchmark Results (150 Episodes Across 5 Seeds)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Scenario / Opponent</th>
+        <th>Condition</th>
+        <th>Win Rate</th>
+        <th>Mean Reward</th>
+        <th>Survival Rate</th>
+        <th>Avg Messages</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="background: rgba(240, 136, 62, 0.08);">
+        <td><strong>Aggressive Rush</strong></td>
+        <td><strong>Independent</strong></td>
+        <td><strong style="color:#f85149;">0 / 25 (0.0%)</strong></td>
+        <td>-408.89</td>
+        <td>0.0% (Squad Wipeout)</td>
+        <td>0.0 msgs</td>
+      </tr>
+      <tr style="background: rgba(63, 185, 80, 0.08);">
+        <td><strong>Aggressive Rush</strong></td>
+        <td><strong>Coordinated</strong></td>
+        <td><strong style="color:#3fb950;">25 / 25 (100.0%)</strong></td>
+        <td><strong>+242.26</strong></td>
+        <td><strong>33.3%</strong></td>
+        <td><strong>819.0 msgs</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Defensive Turtle</strong></td>
+        <td>Independent</td>
+        <td>25 / 25 (100.0%)</td>
+        <td>+556.86</td>
+        <td>100.0%</td>
+        <td>0.0 msgs</td>
+      </tr>
+      <tr>
+        <td><strong>Defensive Turtle</strong></td>
+        <td>Coordinated</td>
+        <td>25 / 25 (100.0%)</td>
+        <td>+556.86</td>
+        <td>100.0%</td>
+        <td>697.0 msgs</td>
+      </tr>
+      <tr>
+        <td><strong>Resource Focused</strong></td>
+        <td>Independent</td>
+        <td>25 / 25 (100.0%)</td>
+        <td>+408.82</td>
+        <td>33.3%</td>
+        <td>0.0 msgs</td>
+      </tr>
+      <tr>
+        <td><strong>Resource Focused</strong></td>
+        <td>Coordinated</td>
+        <td>25 / 25 (100.0%)</td>
+        <td>+408.82</td>
+        <td>33.3%</td>
+        <td>503.0 msgs</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="card card-highlight">
+    <h3 style="margin-top:0;">Key Benchmark Takeaways</h3>
+    <ul>
+      <li><strong>Overall Win Rate</strong>: Independent = 66.7% vs <strong>Coordinated = 100.0% (+33.3% net advantage)</strong>.</li>
+      <li><strong>Mean Team Reward</strong>: +185.60 vs <strong>+402.65 (+217.05 points higher)</strong>.</li>
+      <li><strong>The Aggressive Rush Breakthrough</strong>: Independent agents get wiped out 100% of the time (0% win rate). Coordinated agents broadcast <code>DEFEND_BASE</code>, assemble perimeter defenses, and achieve a <strong>100% win rate (+100.0% turnaround)</strong>.</li>
+    </ul>
+  </div>
+
+  <h2>💻 6. How to Run the Live Demos for the Tutors</h2>
+  <div class="card">
+    <h3>1. Real-Time Pygame Demonstration</h3>
+    <pre>.\.venv\Scripts\python scripts/run_demo.py</pre>
+    <p><strong>Interactive Keys to Show Off</strong>:</p>
+    <ul>
+      <li><kbd>[M]</kbd>: <strong>Live Mode Toggle</strong> — switches between Coordinated and Independent mode on the fly! Notice the bottom radio ticker silence and units disperse.</li>
+      <li><kbd>[SPACE]</kbd>: Pause and resume simulation.</li>
+      <li><kbd>[UP / DOWN]</kbd>: Speed up or slow down simulation FPS.</li>
+      <li><kbd>[R]</kbd>: Reset episode.</li>
+    </ul>
+
+    <h3>2. Interactive Research Analytics Dashboard</h3>
+    <pre>.\.venv\Scripts\streamlit run dashboard/app.py</pre>
+    <p>Launches a web dashboard displaying side-by-side win rate charts, learning curves, and scenario breakdowns.</p>
+
+    <h3>3. Run Automated Test Suite</h3>
+    <pre>.\.venv\Scripts\pytest -q</pre>
+    <p>Executes all 20 regression tests (asserts 100% pass rate in ~11 seconds).</p>
+  </div>
+
+  <h2>🛡️ 7. Tutor Q&A Defense (The Top 6 Questions & Model Answers)</h2>
+
+  <div class="qa-box">
+    <div class="qa-q">Q1: "Did you just hardcode rules, or is this genuine Reinforcement Learning?"</div>
+    <div class="qa-a"><strong>Answer</strong>: "It is genuine Reinforcement Learning. The agents' action selection is governed by an Actor-Critic Neural Network trained via Proximal Policy Optimization (PPO) in PyTorch. The policy receives a 49-dimensional continuous observation vector and outputs probability distributions over 7 actions. What is structured is the communication schema, which feeds directly into observation channels 43 to 48. The policy network learned through PPO updates when to react to those messages."</div>
+  </div>
+
+  <div class="qa-box">
+    <div class="qa-q">Q2: "How do you prove the policy actually uses the communication channels rather than ignoring them?"</div>
+    <div class="qa-a"><strong>Answer</strong>: "We conducted a formal Policy Sensitivity Audit on the neural network weights. By keeping physical observations (channels 0–42) completely identical and only modifying the communication channels (43–48), we observed a measurable shift in action logits (&Delta;<sub>max</sub> = 0.0516) and a +0.931 shift in the Critic's state-value estimation. Furthermore, in our 150-episode benchmark, zeroing out the comm channels caused a 100% squad wipeout against aggressive rushers, while active comm channels delivered a 100% win rate."</div>
+  </div>
+
+  <div class="qa-box">
+    <div class="qa-q">Q3: "Why PettingZoo instead of standard Gym / Gymnasium?"</div>
+    <div class="qa-a"><strong>Answer</strong>: "Gymnasium is designed for single-agent systems. PettingZoo is the multi-agent standard, specifically the Parallel API, which allows simultaneous agent execution, decentralized observations, and individualized reward vectors."</div>
+  </div>
+
+  <div class="qa-box">
+    <div class="qa-q">Q4: "Why PPO over DQN or SAC?"</div>
+    <div class="qa-a"><strong>Answer</strong>: "DQN struggles with non-stationary multi-agent dynamics because replay buffers contain experiences generated by earlier teammate policies. SAC is designed for continuous action spaces, whereas our macro-actions are discrete. PPO with GAE is on-policy, stable, resilient to hyperparameter variations, and avoids destructive updates via clipped surrogate objectives."</div>
+  </div>
+
+  <div class="qa-box">
+    <div class="qa-q">Q5: "What real engineering challenges did you face?"</div>
+    <div class="qa-a"><strong>Answer</strong>: "Two major bugs: First, stale inbox message persistence, where support alerts stayed active forever; we solved this by designing a 15-step temporal freshness decay filter. Second, broken command succession when the Commander died; we implemented dynamic command succession so the Defense Guard immediately assumes tactical leadership."</div>
+  </div>
+
+  <div class="qa-box">
+    <div class="qa-q">Q6: "What is your future roadmap?"</div>
+    <div class="qa-a"><strong>Answer</strong>: "Scaling training to 30,000+ timesteps to compress policy entropy, introducing Asymmetric Self-Play where opponents co-evolve, and benchmarking continuous latent communication (such as TarMAC or CommNet) against our symbolic protocol."</div>
+  </div>
+
+  <footer style="margin-top: 50px; border-top: 1px solid var(--border); padding-top: 20px; text-align: center; color: #8b949e; font-size: 0.9rem;">
+    STRATOS AI &bull; NEXUS AI Research Laboratory &bull; Prepared for Internal Academic Review
+  </footer>
+</div>
+
+</body>
+</html>

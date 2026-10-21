@@ -1,0 +1,84 @@
+# STRATOS AI - Strategy Game Environment Configuration
+
+map:
+  width: 800
+  height: 600
+  grid_cols: 40
+  grid_rows: 30
+
+bases:
+  friendly:
+    x: 80
+    y: 300
+    hp: 1000
+    color: [40, 160, 255] # Cyan / Electric Blue
+  enemy:
+    x: 720
+    y: 300
+    hp: 1000
+    color: [255, 60, 80]  # Crimson Red
+
+resources:
+  nodes:
+    - { id: 0, x: 400, y: 150, max_amount: 500, regen_rate: 1.0 }
+    - { id: 1, x: 400, y: 300, max_amount: 500, regen_rate: 1.0 }
+    - { id: 2, x: 400, y: 450, max_amount: 500, regen_rate: 1.0 }
+  gather_rate: 5.0
+  gather_range: 40.0
+
+units:
+  commander:
+    name: "Commander"
+    hp: 280
+    max_hp: 280
+    speed: 3.2
+    damage: 18.0
+    attack_range: 95.0
+    cooldown: 5 # frames
+    vision_range: 220.0
+    start_pos: [140, 300]
+    color: [255, 215, 0] # Amber / Gold
+
+  defense:
+    name: "Defense_Guard"
+    hp: 380
+    max_hp: 380
+    speed: 2.6
+    damage: 22.0
+    attack_range: 85.0
+    cooldown: 5
+    vision_range: 190.0
+    start_pos: [140, 240]
+    color: [50, 205, 50] # Emerald Green
+
+  attack:
+    name: "Attack_Striker"
+    hp: 220
+    max_hp: 220
+    speed: 3.8
+    damage: 32.0
+    attack_range: 120.0
+    cooldown: 6
+    vision_range: 240.0
+    start_pos: [140, 360]
+    color: [186, 85, 211] # Purple / Plasma
+
+enemy_squad:
+  unit_defaults:
+    hp: 240
+    max_hp: 240
+    speed: 3.0
+    damage: 20.0
+    attack_range: 90.0
+    cooldown: 5
+    vision_range: 200.0
+  initial_positions:
+    - [660, 240]
+    - [660, 300]
+    - [660, 360]
+
+simulation:
+  max_steps: 300
+  fps: 30
+  seed: 42
+  time_step_sec: 0.1
