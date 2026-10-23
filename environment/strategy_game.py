@@ -371,6 +371,7 @@ class StrategyGameEnv:
 
         # 8. Compute Rewards
         rewards = self.reward_calculator.compute_rewards(self.state, self.state, step_events)
+        self.last_step_events = dict(step_events)
 
         # Apply message cost
         if self.msg_cost > 0:
