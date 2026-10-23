@@ -31,7 +31,7 @@ def evaluate_policy(
     include_role_id = False
     if checkpoint_path is not None and Path(checkpoint_path).exists():
         policy, meta = load_checkpoint(checkpoint_path, device=device)
-        include_role_id = meta.get("obs_dim", 49) == 52 or meta.get("obs_dim", 67) == 67 or meta.get("include_role_id", True)
+        include_role_id = meta.get("obs_dim", 73) in (52, 67, 73) or meta.get("include_role_id", True)
 
     env = StrategyGameEnv(
         config_path=game_config_path,

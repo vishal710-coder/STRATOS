@@ -81,7 +81,7 @@ def test_train_pipeline_resumption():
         tmp_p = Path(tmp_dir)
         init_ckpt = tmp_p / "init.pt"
         from environment.actions import NUM_ACTIONS
-        policy = ActorCriticPolicy(obs_dim=70, act_dim=NUM_ACTIONS)
+        policy = ActorCriticPolicy(obs_dim=73, act_dim=NUM_ACTIONS)
         save_checkpoint(str(init_ckpt), policy, total_steps=100, episode=2)
 
         out_ckpt = tmp_p / "resumed.pt"

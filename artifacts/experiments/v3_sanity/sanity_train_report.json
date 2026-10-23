@@ -1,0 +1,178 @@
+{
+  "training_logs": {
+    "COMM": {
+      "42": {
+        "final_mean_reward": -115.498,
+        "wall_clock_sec": 0.0,
+        "throughput_steps_sec": 0.0,
+        "final_policy_entropy": null,
+        "final_comm_entropy": null
+      },
+      "101": {
+        "final_mean_reward": -85.97,
+        "wall_clock_sec": 477.0493493080139,
+        "throughput_steps_sec": 419.24383774993277,
+        "final_policy_entropy": null,
+        "final_comm_entropy": null
+      },
+      "202": {
+        "final_mean_reward": -137.846,
+        "wall_clock_sec": 851.2284345626831,
+        "throughput_steps_sec": 234.95455729548038,
+        "final_policy_entropy": null,
+        "final_comm_entropy": null
+      }
+    },
+    "NO_COMM": {
+      "42": {
+        "final_mean_reward": 72.839,
+        "wall_clock_sec": 340.52678751945496,
+        "throughput_steps_sec": 587.3253069366051,
+        "final_policy_entropy": null,
+        "final_comm_entropy": null
+      },
+      "101": {
+        "final_mean_reward": 69.152,
+        "wall_clock_sec": 339.4342677593231,
+        "throughput_steps_sec": 589.2157009374511,
+        "final_policy_entropy": null,
+        "final_comm_entropy": null
+      },
+      "202": {
+        "final_mean_reward": 232.41199999999998,
+        "wall_clock_sec": 375.6592733860016,
+        "throughput_steps_sec": 532.3973455980515,
+        "final_policy_entropy": null,
+        "final_comm_entropy": null
+      }
+    }
+  },
+  "evaluated_conditions": {
+    "COMM": {
+      "per_seed": {
+        "42": {
+          "win_rate": 26.0,
+          "draw_rate": 32.0,
+          "loss_rate": 42.0,
+          "mean_reward": -13.081179704471678
+        },
+        "101": {
+          "win_rate": 8.0,
+          "draw_rate": 87.33333333333333,
+          "loss_rate": 4.666666666666667,
+          "mean_reward": -1.7731185216450334
+        },
+        "202": {
+          "win_rate": 8.666666666666666,
+          "draw_rate": 70.66666666666667,
+          "loss_rate": 20.666666666666668,
+          "mean_reward": -35.64392948001383
+        }
+      },
+      "mean_win": 14.222222222222221,
+      "ci_win": [
+        8.0,
+        26.0
+      ],
+      "mean_draw": 63.333333333333336,
+      "ci_draw": [
+        32.0,
+        87.33333333333333
+      ],
+      "mean_loss": 22.444444444444443,
+      "ci_loss": [
+        4.666666666666667,
+        42.0
+      ],
+      "mean_reward": -16.83274256871018,
+      "ci_reward": [
+        -35.64392948001383,
+        -1.773118521645033
+      ]
+    },
+    "NO_COMM": {
+      "per_seed": {
+        "42": {
+          "win_rate": 1.3333333333333333,
+          "draw_rate": 83.33333333333333,
+          "loss_rate": 15.333333333333334,
+          "mean_reward": -47.84088964717139
+        },
+        "101": {
+          "win_rate": 24.666666666666668,
+          "draw_rate": 38.0,
+          "loss_rate": 37.333333333333336,
+          "mean_reward": -19.795952885141343
+        },
+        "202": {
+          "win_rate": 0.6666666666666666,
+          "draw_rate": 86.0,
+          "loss_rate": 13.333333333333334,
+          "mean_reward": -46.873352528519305
+        }
+      },
+      "mean_win": 8.88888888888889,
+      "ci_win": [
+        0.6666666666666666,
+        24.666666666666668
+      ],
+      "mean_draw": 69.1111111111111,
+      "ci_draw": [
+        38.0,
+        86.0
+      ],
+      "mean_loss": 22.0,
+      "ci_loss": [
+        13.333333333333334,
+        37.333333333333336
+      ],
+      "mean_reward": -38.17006502027734,
+      "ci_reward": [
+        -47.84088964717139,
+        -19.795952885141336
+      ]
+    }
+  },
+  "baselines": {
+    "Random": {
+      "win_rate": 6.0,
+      "draw_rate": 84.0,
+      "loss_rate": 10.0,
+      "mean_reward": -23.211905052093165,
+      "ci_reward": [
+        -36.86002183185522,
+        -9.56378827233111
+      ]
+    },
+    "Scripted Heuristic": {
+      "win_rate": 45.33333333333333,
+      "draw_rate": 33.33333333333333,
+      "loss_rate": 21.333333333333336,
+      "mean_reward": 65.86557606930752,
+      "ci_reward": [
+        37.976590709558906,
+        93.75456142905614
+      ]
+    },
+    "Silent Reference": {
+      "win_rate": 22.666666666666664,
+      "draw_rate": 61.33333333333333,
+      "loss_rate": 16.0,
+      "mean_reward": 8.001970892213086,
+      "ci_reward": [
+        -15.488362745585166,
+        31.49230453001134
+      ]
+    },
+    "Oracle Messenger": {
+      "win_rate": 54.666666666666664,
+      "draw_rate": 32.666666666666664,
+      "loss_rate": 12.666666666666668,
+      "mean_reward": 132.23246543325368,
+      "ci_reward": [
+        103.59787241737804,
+        160.8670584491293
+      ]
+    }
+  }
+}

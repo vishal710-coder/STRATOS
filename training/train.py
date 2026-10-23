@@ -28,7 +28,7 @@ def train_stratos(
     output_checkpoint_path: Optional[str] = None,
     history_csv_path: Optional[str] = None,
     history_json_path: Optional[str] = None,
-    include_role_id: bool = False,
+    include_role_id: bool = True,
     verbose: bool = True,
 ) -> Dict[str, Any]:
     """Execute PPO training pipeline."""
