@@ -37,6 +37,7 @@ class MultiAgentRolloutBuffer:
         self.values = torch.zeros((buffer_size, num_agents), dtype=torch.float32, device=device)
         self.advantages = torch.zeros((buffer_size, num_agents), dtype=torch.float32, device=device)
         self.returns = torch.zeros((buffer_size, num_agents), dtype=torch.float32, device=device)
+        self.hidden_facts = torch.zeros((buffer_size, num_agents, 2), dtype=torch.long, device=device)
 
         self.step = 0
         self.actual_size = buffer_size
@@ -50,6 +51,7 @@ class MultiAgentRolloutBuffer:
         done: torch.Tensor,
         value: torch.Tensor,
         message: Optional[torch.Tensor] = None,
+        hidden_fact: Optional[torch.Tensor] = None,
     ) -> None:
         """Insert single timestep transition for all agents."""
         assert self.step < self.buffer_size, "Rollout buffer overflow!"
@@ -59,6 +61,10 @@ class MultiAgentRolloutBuffer:
             self.messages[self.step].copy_(message)
         else:
             self.messages[self.step].zero_()
+        if hidden_fact is not None:
+            self.hidden_facts[self.step].copy_(hidden_fact)
+        else:
+            self.hidden_facts[self.step].zero_()
         self.logprobs[self.step].copy_(logprob)
         self.rewards[self.step].copy_(reward)
         self.dones[self.step].copy_(done)
@@ -90,10 +96,12 @@ class MultiAgentRolloutBuffer:
         self,
         batch_size: int,
         with_messages: bool = False,
+        with_aux: bool = False,
     ) -> Generator[Tuple[torch.Tensor, ...], None, None]:
         """
         Flatten buffer across (actual_size * num_agents) and yield mini-batches.
-        If with_messages=True, returns (b_obs, b_actions, b_messages, b_logprobs, b_advantages, b_returns).
+        If with_messages=True and with_aux=True, returns (b_obs, b_actions, b_messages, b_logprobs, b_advantages, b_returns, b_hidden_facts).
+        If with_messages=True and with_aux=False, returns (b_obs, b_actions, b_messages, b_logprobs, b_advantages, b_returns).
         If with_messages=False, returns (b_obs, b_actions, b_logprobs, b_advantages, b_returns).
         """
         actual_size = getattr(self, "actual_size", self.buffer_size)
@@ -101,6 +109,7 @@ class MultiAgentRolloutBuffer:
         b_obs = self.obs[:actual_size].reshape(total_samples, self.obs_dim)
         b_actions = self.actions[:actual_size].reshape(total_samples)
         b_messages = self.messages[:actual_size].reshape(total_samples)
+        b_hidden_facts = self.hidden_facts[:actual_size].reshape(total_samples, 2)
         b_logprobs = self.logprobs[:actual_size].reshape(total_samples)
         b_advantages = self.advantages[:actual_size].reshape(total_samples)
         b_returns = self.returns[:actual_size].reshape(total_samples)
@@ -114,7 +123,17 @@ class MultiAgentRolloutBuffer:
         for start_idx in range(0, total_samples, batch_size):
             end_idx = start_idx + batch_size
             batch_inds = indices[start_idx:end_idx]
-            if with_messages:
+            if with_messages and with_aux:
+                yield (
+                    b_obs[batch_inds],
+                    b_actions[batch_inds],
+                    b_messages[batch_inds],
+                    b_logprobs[batch_inds],
+                    b_advantages[batch_inds],
+                    b_returns[batch_inds],
+                    b_hidden_facts[batch_inds],
+                )
+            elif with_messages:
                 yield (
                     b_obs[batch_inds],
                     b_actions[batch_inds],

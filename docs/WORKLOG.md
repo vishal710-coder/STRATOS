@@ -108,16 +108,42 @@ Evaluated across **300 held-out evaluation episodes** (100 fresh held-out seeds 
 
 ---
 
-## Step 4: Help Messages Become Meaningful (Next Step)
+## Step 4: Help Messages Become Meaningful (Completed)
+
+### 4.1 Implemented Training Aids (Behind Config Flags)
+1. **Message Entropy Bonus** (`comm_entropy_coef: float = 0.01`):
+   - Added dedicated communication entropy regularization $H(\pi_{\text{comm}})$ in `PPOTrainer` to directly penalize symbol collapse to token 0 without inflating action space entropy.
+2. **Auxiliary Fact Prediction Loss** (`aux_pred_loss_coef: float = 0.0`):
+   - Added optional auxiliary decoding head `aux_head = nn.Linear(hidden_dim, 6)` to `ActorCriticPolicy`.
+   - Receiver predicts the latent weak lane $L^* \in \{0, 1, 2\}$ and incoming wave flank $F^* \in \{0, 1, 2\}$.
+   - Supervised cross-entropy objective without hardcoded symbol meanings, allowing emergent mapping between communication tokens and latent battlefield facts.
+3. **Per-Message Transmission Cost** (`message_cost: float = 0.0`):
+   - Added per-message transmission deduction in `StrategyGameEnv` and exposed it via `message_cost` kwargs and `config/training.yaml`.
+4. **Automated Verification**:
+   - Added `test_training_aids` in `tests/test_training.py` validating that entropy bonuses, auxiliary cross-entropy loss, and message costs function as specified.
+   - All 33 pytest tests pass.
+
+---
+
+## Step 5: Sanity Train, Small (Next Step)
 
 ### Plan:
-Implement three training aids behind configurable flags in `config/training.yaml` and the PPO update engine:
-1. **Message Entropy Bonus** (`comm_entropy_coef: float = 0.01`):
-   - Adds an entropy incentive $H(\pi_{\text{comm}})$ to prevent premature symbol collapse to the silent token 0.
-2. **Auxiliary Fact Prediction Loss** (`aux_pred_loss_coef: float = 0.0`):
-   - Receiver auxiliary prediction head: receiver predicts the hidden fact ($L^*$ or $F^*$) from the received token representation.
-   - Supervised cross-entropy objective without hardcoding token mappings.
-3. **Per-Message Cost** (`message_cost: float = 0.0`):
-   - Configurable penalty applied whenever a non-zero token is emitted, discouraging gratuitous babbling.
-4. Verify config toggles and run `pytest`. Commit work.
+1. **Experimental Protocol**:
+   - Condition A: `COMM` (coordination_mode="coordinated", has_comm_head=True, comm_entropy_coef=0.01).
+   - Condition B: `NO_COMM` (coordination_mode="independent", has_comm_head=False).
+   - Training budget: **200,000 steps** per run.
+   - Opponents: `mixed` (cyclical opponent sampling across `aggressive`, `defensive`, `resource_focused`).
+   - Training seeds: 3 seeds (`42`, `101`, `202`).
+   - Total runs: $2 \times 3 = 6$ training runs of 200k steps each.
+2. **Held-Out Evaluation Protocol**:
+   - Evaluate all final trained models on held-out seeds (`5000`..`5099`).
+   - Compare against:
+     - Random Policy
+     - Scripted Heuristic
+     - Oracle Messenger Policy
+     - Silent Reference Policy
+3. **Statistical Reporting**:
+   - Report mean, per-seed values, win/draw/loss rates, entropy, and cluster bootstrap 95% CI over training seeds.
+   - Stop and deliver concise report before any larger runs. Commit work.
+
 

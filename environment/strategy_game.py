@@ -61,7 +61,7 @@ class StrategyGameEnv:
         self.vocab_size = int(comm_cfg.get("vocab_size", 8))  # K meaningful tokens
         self.msg_tokens = self.vocab_size + 1  # +1 for "silent" token (index 0)
         self.msg_delay = int(comm_cfg.get("message_delay", 1))
-        self.msg_cost = float(comm_cfg.get("message_cost", 0.0))
+        self.msg_cost = float(kwargs.get("message_cost", comm_cfg.get("message_cost", 0.0)))
 
         # Observation dimensions:
         # [self_status(5) + friendly_base(3) + enemy_base(3) + teammates(2x4=8) +

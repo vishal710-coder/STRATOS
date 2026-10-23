@@ -9,6 +9,7 @@ import pandas as pd
 import torch
 import yaml
 
+from environment.actions import NUM_ACTIONS
 from environment.strategy_game import StrategyGameEnv
 from agents.policies import ActorCriticPolicy
 from training.rollout import MultiAgentRolloutBuffer
@@ -56,17 +57,22 @@ def train_stratos(
     if opponent_strategy == "mixed":
         current_opponent = opponents_pool[0]
 
+    comm_entropy_coef = float(cfg.get("hyperparameters", {}).get("comm_entropy_coef", cfg.get("hyperparameters", {}).get("entropy_coef", 0.01)))
+    aux_loss_coef = float(cfg.get("hyperparameters", {}).get("aux_pred_loss_coef", 0.0))
+    msg_cost = float(cfg.get("training", {}).get("message_cost", 0.0))
+
     # Initialize Environment
     env = StrategyGameEnv(
         config_path=game_config_path,
         coordination_mode=coordination_mode,
         opponent_strategy=current_opponent,
         include_role_id=include_role_id,
+        message_cost=msg_cost,
     )
 
     num_agents = len(env.possible_agents)
     obs_dim = env.obs_dim
-    act_dim = 7
+    act_dim = NUM_ACTIONS
     has_comm_head = (coordination_mode == "coordinated")
 
     # Initialize Policy & PPO Trainer
@@ -75,6 +81,7 @@ def train_stratos(
         act_dim=act_dim,
         msg_dim=env.msg_tokens,
         has_comm_head=has_comm_head,
+        has_aux_head=(has_comm_head and (aux_loss_coef > 0.0)),
     ).to(device)
     trainer = PPOTrainer(
         policy=policy,
@@ -82,6 +89,8 @@ def train_stratos(
         clip_eps=float(cfg["hyperparameters"]["clip_eps"]),
         value_coef=float(cfg["hyperparameters"]["value_loss_coef"]),
         entropy_coef=float(cfg["hyperparameters"]["entropy_coef"]),
+        comm_entropy_coef=comm_entropy_coef,
+        aux_loss_coef=aux_loss_coef,
         max_grad_norm=float(cfg["hyperparameters"]["max_grad_norm"]),
         device=str(device),
     )
@@ -170,6 +179,12 @@ def train_stratos(
             last_done_val = done_val
             done_tensor = torch.full((num_agents,), done_val, dtype=torch.float32, device=device)
 
+            hidden_fact = torch.as_tensor(
+                [[env.state.weak_lane, env.state.wave_flank]] * num_agents,
+                dtype=torch.long,
+                device=device,
+            ) if env.state else None
+
             # Store in buffer
             buffer.insert(
                 obs=obs_tensor,
@@ -179,6 +194,7 @@ def train_stratos(
                 done=done_tensor,
                 value=value_tensor.squeeze(-1),
                 message=msg_tensor,
+                hidden_fact=hidden_fact,
             )
 
             episode_reward += float(sum(rewards.values()))

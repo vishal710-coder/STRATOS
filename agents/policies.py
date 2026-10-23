@@ -28,6 +28,7 @@ class ActorCriticPolicy(nn.Module):
         msg_dim: int = 9,
         hidden_dim: int = 256,
         has_comm_head: bool = True,
+        has_aux_head: bool = False,
     ):
         super().__init__()
         self.obs_dim = obs_dim
@@ -35,6 +36,7 @@ class ActorCriticPolicy(nn.Module):
         self.msg_dim = msg_dim
         self.hidden_dim = hidden_dim
         self.has_comm_head = has_comm_head and (msg_dim > 0)
+        self.has_aux_head = has_aux_head
 
         # Shared feature representation trunk
         self.network = nn.Sequential(
@@ -55,6 +57,39 @@ class ActorCriticPolicy(nn.Module):
 
         # Decentralized state value estimator
         self.critic = layer_init(nn.Linear(hidden_dim, 1), std=1.0)
+
+        # Optional Auxiliary Fact Prediction Head (predicts 3 weak_lane + 3 wave_flank classes = 6 logits)
+        if self.has_aux_head:
+            self.aux_head = layer_init(nn.Linear(hidden_dim, 6), std=0.01)
+        else:
+            self.aux_head = None
+
+    def evaluate_actions_and_aux(
+        self,
+        obs: torch.Tensor,
+        action: torch.Tensor,
+        message: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+        """Evaluate action logprobs, message logprobs, entropies, value, and auxiliary fact logits."""
+        features = self.network(obs)
+        act_logits = self.actor(features)
+        act_probs = Categorical(logits=act_logits)
+        act_log_prob = act_probs.log_prob(action)
+        act_entropy = act_probs.entropy()
+
+        if self.has_comm_head and self.comm_actor is not None:
+            msg_logits = self.comm_actor(features)
+            msg_probs = Categorical(logits=msg_logits)
+            msg_log_prob = msg_probs.log_prob(message)
+            msg_entropy = msg_probs.entropy()
+        else:
+            msg_log_prob = torch.zeros_like(act_log_prob)
+            msg_entropy = torch.zeros_like(act_entropy)
+
+        value = self.critic(features)
+        aux_logits = self.aux_head(features) if (self.has_aux_head and self.aux_head is not None) else None
+
+        return act_log_prob, msg_log_prob, act_entropy, msg_entropy, value, aux_logits
 
     def forward(self, obs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass returning action logits and state value (for backward compatibility)."""
