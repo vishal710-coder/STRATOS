@@ -21,6 +21,7 @@ env/
 htmlcov/
 
 # Artifacts & Checkpoints
+artifacts/checkpoints/**/*.pt
 artifacts/checkpoints/*.pt
 !artifacts/checkpoints/stratos_policy_candidate_fix_5000step.pt
 !artifacts/checkpoints/stratos_policy_latest.pt

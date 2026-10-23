@@ -30,6 +30,9 @@ def train_stratos(
     history_json_path: Optional[str] = None,
     include_role_id: bool = True,
     verbose: bool = True,
+    aux_loss_coef: Optional[float] = None,
+    comm_entropy_coef: Optional[float] = None,
+    save_interval_steps: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Execute PPO training pipeline."""
     start_time = time.time()
@@ -45,7 +48,10 @@ def train_stratos(
         total_timesteps = int(cfg["training"]["total_timesteps"])
 
     rollout_steps = int(cfg["training"]["rollout_steps"])
-    save_interval = int(cfg["training"].get("save_interval_steps", 5000))
+    if save_interval_steps is not None:
+        save_interval = int(save_interval_steps)
+    else:
+        save_interval = int(cfg["training"].get("save_interval_steps", 5000))
     checkpoints_dir = Path(cfg["paths"]["checkpoints_dir"])
     experiments_dir = Path(cfg["paths"]["experiments_dir"])
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
@@ -57,8 +63,15 @@ def train_stratos(
     if opponent_strategy == "mixed":
         current_opponent = opponents_pool[0]
 
-    comm_entropy_coef = float(cfg.get("hyperparameters", {}).get("comm_entropy_coef", cfg.get("hyperparameters", {}).get("entropy_coef", 0.01)))
-    aux_loss_coef = float(cfg.get("hyperparameters", {}).get("aux_pred_loss_coef", 0.0))
+    if comm_entropy_coef is None:
+        comm_entropy_coef = float(cfg.get("hyperparameters", {}).get("comm_entropy_coef", cfg.get("hyperparameters", {}).get("entropy_coef", 0.01)))
+    else:
+        comm_entropy_coef = float(comm_entropy_coef)
+
+    if aux_loss_coef is None:
+        aux_loss_coef = float(cfg.get("hyperparameters", {}).get("aux_pred_loss_coef", 0.0))
+    else:
+        aux_loss_coef = float(aux_loss_coef)
     msg_cost = float(cfg.get("training", {}).get("message_cost", 0.0))
 
     # Initialize Environment
@@ -277,7 +290,11 @@ def train_stratos(
 
         # Periodic checkpoint
         if current_step % save_interval == 0 and current_step < total_timesteps:
-            ckpt_path = checkpoints_dir / f"stratos_policy_step_{starting_step + current_step}.pt"
+            if output_checkpoint_path:
+                out_p = Path(output_checkpoint_path)
+                ckpt_path = out_p.parent / f"{out_p.stem}_step_{starting_step + current_step}{out_p.suffix}"
+            else:
+                ckpt_path = checkpoints_dir / f"stratos_policy_step_{starting_step + current_step}.pt"
             save_checkpoint(
                 path=str(ckpt_path),
                 policy=policy,

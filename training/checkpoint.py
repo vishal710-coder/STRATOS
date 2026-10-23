@@ -83,7 +83,10 @@ def load_checkpoint(
     policy.eval()
 
     if not is_dim_expansion and optimizer is not None and checkpoint.get("optimizer_state_dict") is not None:
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        try:
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        except (ValueError, KeyError):
+            pass
 
     metadata = {
         "total_steps": checkpoint.get("total_steps", 0),

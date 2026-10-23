@@ -164,16 +164,127 @@ Evaluated across **300 held-out evaluation episodes** (100 fresh held-out seeds 
 ### 5.4 Key Diagnostic Takeaways
 1. **Communication Outperforms Silence**:
    - `COMM` achieves a **+5.3% higher win rate** (14.2% vs 8.9%) and a **+21.34 point reward gain** over `NO_COMM` (-16.83 vs -38.17).
-   - In 2 of 3 seeds (Seed 42 and Seed 202), `NO_COMM` essentially collapsed to near-zero wins (1.3% and 0.7%) because without communication, units cannot locate the randomized weak lane and get punished by the non-weak lane's 40x armored shield ratio.
+   - In 2 of 3 seeds (Seed 42 and Seed 202), `NO_COMM` collapsed to near-zero wins (1.3% and 0.7%) without communication.
 2. **Reward Ordering & Passivity Eliminated**:
    - Random action policy scores -23.21 with 84% draws.
    - Scripted Heuristic (+65.87) and Oracle Messenger (+132.23) decisively surpass Random and Silent policies.
-   - Stalling to a draw is strictly negative (-30 terminal + step penalty), removing any perverse incentive for passivity.
+   - Stalling to a draw is strictly negative (-30 terminal + step penalty).
 3. **Huge Theoretical Headroom Validated**:
    - The Oracle Messenger (+132.23, 54.7% wins) vs. Silent Reference (+8.00, 22.7% wins) establishes a massive **+124.23 reward gap** and **+32.0% win rate gap**.
-   - This proves that the new task structure makes communication fundamentally valuable and decisive for victory.
-4. **Current Status**:
-   - Small sanity runs completed. Stopping here as instructed before any larger scale training or packaging.
+
+---
+
+## Step 6: Resumed Scaling (+400k Steps, 600k Total) & Message Ablation Audit (Completed)
+
+### 6.1 Experimental Protocol
+- **Conditions (Equal Budgets across Conditions)**:
+  1. `NO_COMM`: Independent tactical actors (resumed from 200k to 600k total steps).
+  2. `COMM`: Coordinated dual-head policy with $H_{\text{comm}}$ entropy bonus, `aux_pred_loss_coef=0.0` (resumed from 200k to 600k).
+  3. `COMM_AUX`: Coordinated policy resumed from COMM 200k with `aux_pred_loss_coef=0.1` (receiver must predict latent $L^*$ weak lane and $F^*$ wave flank from received representations).
+- **Execution**: 9 jobs executed in parallel across 9 CPU worker processes (`torch.set_num_threads(1)`).
+- **Throughput & Wall-Clock**:
+  - NO_COMM: 363–365 steps/sec (~1,098s).
+  - COMM: 286–288 steps/sec (~1,394s).
+  - COMM_AUX: 277–278 steps/sec (~1,440s).
+  - Total Training Time: **24.18 mins** (1,451.1s).
+  - Total Parallel Evaluation Time: **4.39 mins** (263.3s). Total Wall-Clock = **28.5 minutes**.
+- **Evaluation**: Held-out seeds `5000`..`5049` (150 episodes per checkpoint, 1,350 total evaluation episodes plus message ablations).
+
+### 6.2 Empirical Outcomes on Held-Out Seeds (5000–5049)
+
+| Condition | Win % (Cluster 95% CI) | Draw % (Cluster 95% CI) | Loss % (Cluster 95% CI) | Mean Reward (Cluster 95% CI) |
+|---|---|---|---|---|
+| **NO_COMM** (600k) | 6.89% [0.00%, 16.67%] | 78.89% [66.67%, 91.33%] | 14.22% [4.67%, 21.33%] | -42.50 [-101.29, -2.50] |
+| **COMM** (600k) | 6.00% [3.33%, 8.67%] | 78.67% [66.00%, 90.00%] | 15.33% [6.67%, 28.00%] | -36.12 [-77.50, -6.55] |
+| **COMM_AUX** (600k) | 4.67% [0.00%, 9.33%] | 74.89% [61.33%, 84.00%] | 20.44% [16.00%, 29.33%] | -54.65 [-79.37, -29.38] |
+| *Random Policy* | 6.00% | 84.00% | 10.00% | -23.21 [-36.86, -9.56] |
+| *Scripted Heuristic* | 45.33% | 33.33% | 21.33% | +65.87 [37.98, 93.75] |
+| *Silent Reference* | 22.67% | 61.33% | 16.00% | +8.00 [-15.49, 31.49] |
+| *Oracle Messenger* | **54.67%** | **32.67%** | **12.67%** | **+132.23** [103.60, 160.87] |
+
+### 6.3 Per-Seed Values & Difference Ranges (N=3 Seeds)
+
+#### Per-Seed Breakdown:
+- **NO_COMM**:
+  - Seed 42: Win = 0.00%, Draw = 78.67%, Loss = 21.33%, Reward = -101.29
+  - Seed 101: Win = 16.67%, Draw = 66.67%, Loss = 16.67%, Reward = -2.50
+  - Seed 202: Win = 4.00%, Draw = 91.33%, Loss = 4.67%, Reward = -23.72
+- **COMM**:
+  - Seed 42: Win = 6.00%, Draw = 66.00%, Loss = 28.00%, Reward = -77.50
+  - Seed 101: Win = 8.67%, Draw = 80.00%, Loss = 11.33%, Reward = -6.55
+  - Seed 202: Win = 3.33%, Draw = 90.00%, Loss = 6.67%, Reward = -24.31
+- **COMM_AUX**:
+  - Seed 42: Win = 0.00%, Draw = 84.00%, Loss = 16.00%, Reward = -79.37
+  - Seed 101: Win = 4.67%, Draw = 79.33%, Loss = 16.00%, Reward = -29.38
+  - Seed 202: Win = 9.33%, Draw = 61.33%, Loss = 29.33%, Reward = -55.20
+
+#### COMM minus NO_COMM Differences:
+- **Win Rate Difference**:
+  - Seed 42: **+6.00%**
+  - Seed 101: **-8.00%**
+  - Seed 202: **-0.67%**
+  - *Range*: `[-8.00%, +6.00%]`, Mean: `-0.89%`
+- **Reward Difference**:
+  - Seed 42: **+23.79**
+  - Seed 101: **-4.05**
+  - Seed 202: **-0.59**
+  - *Range*: `[-4.05, +23.79]`, Mean: `+6.38`
+
+#### COMM_AUX minus NO_COMM Differences:
+- **Win Rate Difference**:
+  - Seed 42: **0.00%**
+  - Seed 101: **-12.00%**
+  - Seed 202: **+5.33%**
+  - *Range*: `[-12.00%, +5.33%]`, Mean: `-2.22%`
+- **Reward Difference**:
+  - Seed 42: **+21.92**
+  - Seed 101: **-26.88**
+  - Seed 202: **-31.48**
+  - *Range*: `[-31.48, +21.92]`, Mean: `-12.15`
+
+### 6.4 Training Health
+- **Final Action Entropy**: NO_COMM annealed down to ~0.0098–0.0102; COMM maintained ~0.0288–0.0307; COMM_AUX maintained ~0.0298–0.0317.
+- **Comm Entropy**: COMM stabilized at ~2.00–2.11 nats; COMM_AUX stabilized at ~2.06–2.12 nats.
+- **Value Loss**: Ranged between 3.17 and 10.57 across all runs without numerical instability or exploding gradients.
+- **Learning Convergence**: Seed 101 learned high reward across all conditions in training, but generalization to held-out seeds was bounded by high draw rates (74–79%).
+
+### 6.5 Message Analysis (COMM vs COMM_AUX)
+- **COMM**:
+  - Tokens used out of 9 (frequency $\ge 1\%$): Seed 42 = 3, Seed 101 = 6, Seed 202 = 4 (Mean: **4.3 / 9**).
+  - Message Entropy: 1.16 to 2.29 bits (Mean: **1.69 bits**).
+  - $I(M_{\text{attack}}; \text{Weak Lane})$: **0.009 to 0.051 bits** (Mean: **0.036 bits**).
+  - $I(M_{\text{defense}}; \text{Wave Flank})$: **0.129 to 0.193 bits** (Mean: **0.153 bits**).
+- **COMM_AUX** (Auxiliary Decoding Head Active):
+  - Tokens used out of 9: Seed 42 = 7, Seed 101 = 4, Seed 202 = 6 (Mean: **5.7 / 9**).
+  - Message Entropy: 1.74 to 2.39 bits (Mean: **2.15 bits**).
+  - $I(M_{\text{attack}}; \text{Weak Lane})$: **0.073 to 0.485 bits** (Mean: **0.307 bits**, an **$8.5\times$ surge** in groundability over COMM!).
+  - $I(M_{\text{defense}}; \text{Wave Flank})$: **0.014 to 0.122 bits** (Mean: **0.086 bits**).
+
+### 6.6 Message Ablation Study (Same 150 Held-Out Episodes)
+Testing sensitivity of the policy to received communication:
+
+| Condition & Seed | Intact Win / Rew | Zeroed Win / Rew | Random Win / Rew | Shuffled Win / Rew |
+|---|---|---|---|---|
+| **COMM s42** | 6.00% / -77.50 | 6.00% / -77.52 | 5.33% / -79.46 | 6.00% / -79.36 |
+| **COMM s101** | 8.67% / -6.55 | 8.67% / -5.18 | 8.67% / -6.37 | 6.67% / -11.95 |
+| **COMM s202** | 3.33% / -24.31 | 3.33% / -25.25 | 2.67% / -27.17 | 3.33% / -24.20 |
+| **COMM_AUX s42** | 0.00% / -79.37 | 0.00% / -75.98 | 0.00% / -79.22 | 0.00% / -80.29 |
+| **COMM_AUX s101** | 4.67% / -29.38 | 5.33% / -30.72 | 4.00% / -28.60 | 4.00% / -30.93 |
+| **COMM_AUX s202** | 9.33% / -55.20 | 10.67% / -54.75 | 9.33% / -56.68 | 8.67% / -59.05 |
+
+**Ablation Takeaway**:
+Zeroing, randomizing, or shuffling delivered messages changes win rates by $< 1.3\%$ and rewards by $< 2.5$ points.
+
+### 6.7 Privileged Baseline Audit: Scripted Heuristic
+Inspection of `TargetedCombatPolicy` in `agents/targeted_policy.py`:
+- Inputs read: `obs[2]` (self health ratio), `obs[7]` (friendly base HP), `obs[19 + i*4 + 3]` (nearest visible enemy presence).
+- Hidden facts read: **NONE**. Does not read `obs[46:49]` (weak lane), `obs[49:52]` (flank warning), or any communication slots (`obs[52:70]`).
+- **Verdict**: The Scripted Heuristic is **NOT a privileged baseline**. It achieves 45.33% win rate and +65.87 reward purely through simple tactical coordination (rushing base and focusing visible enemies).
+
+### 6.8 Scientific Verdict: Do Learned Agents Use Messages?
+**NO**.
+While `COMM_AUX` successfully forces the sender's policy to encode battlefield ground truth into discrete tokens (achieving up to **0.485 bits** of mutual information with the weak lane), the receiving action policy completely ignores the incoming message channels. Zeroing out messages produces zero collapse in win rate or reward across all seeds.
+
 
 
 
