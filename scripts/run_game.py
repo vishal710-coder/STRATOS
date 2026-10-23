@@ -33,11 +33,18 @@ def main():
         include_role_id = meta.get("obs_dim", 67) in (52, 67) or meta.get("include_role_id", True)
         print(f"Loaded policy checkpoint: {args.checkpoint} (Trained steps: {meta.get('total_steps', 0)})")
     else:
-        # Check if default candidate fix exists, else latest
-        default_candidate = Path("artifacts/checkpoints/stratos_policy_candidate_fix_5000step.pt")
+        # Default resolution: prioritize best validated checkpoint
+        default_best = Path("artifacts/checkpoints/stratos_policy_comm_best.pt")
         default_latest = Path("artifacts/checkpoints/stratos_policy_latest.pt")
-        target_default = default_latest if default_latest.exists() else default_candidate
-        if target_default.exists():
+        default_seed42 = Path("artifacts/checkpoints/stratos_policy_comm_seed42.pt")
+        
+        target_default = None
+        for cand in [default_best, default_seed42, default_latest]:
+            if cand.exists():
+                target_default = cand
+                break
+
+        if target_default is not None:
             policy, meta = load_checkpoint(str(target_default))
             include_role_id = meta.get("obs_dim", 67) in (52, 67) or meta.get("include_role_id", True)
             print(f"Loaded default policy checkpoint: {target_default} (Trained steps: {meta.get('total_steps', 0)})")
