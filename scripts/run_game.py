@@ -30,16 +30,16 @@ def main():
     include_role_id = False
     if args.checkpoint and Path(args.checkpoint).exists():
         policy, meta = load_checkpoint(args.checkpoint)
-        include_role_id = meta.get("obs_dim", 49) == 52
+        include_role_id = meta.get("obs_dim", 67) in (52, 67) or meta.get("include_role_id", True)
         print(f"Loaded policy checkpoint: {args.checkpoint} (Trained steps: {meta.get('total_steps', 0)})")
     else:
         # Check if default candidate fix exists, else latest
         default_candidate = Path("artifacts/checkpoints/stratos_policy_candidate_fix_5000step.pt")
         default_latest = Path("artifacts/checkpoints/stratos_policy_latest.pt")
-        target_default = default_candidate if default_candidate.exists() else default_latest
+        target_default = default_latest if default_latest.exists() else default_candidate
         if target_default.exists():
             policy, meta = load_checkpoint(str(target_default))
-            include_role_id = meta.get("obs_dim", 49) == 52
+            include_role_id = meta.get("obs_dim", 67) in (52, 67) or meta.get("include_role_id", True)
             print(f"Loaded default policy checkpoint: {target_default} (Trained steps: {meta.get('total_steps', 0)})")
         else:
             print("No checkpoint found; running with autonomous heuristics.")
@@ -70,9 +70,14 @@ def main():
             agent_obs = np.array([obs[a] for a in env.possible_agents])
             obs_t = torch.as_tensor(agent_obs, dtype=torch.float32)
             with torch.no_grad():
-                a_t, _, _, _ = policy.get_action_and_value(obs_t, deterministic=True)
-            for i, a in enumerate(env.possible_agents):
-                actions[a] = int(a_t[i].item())
+                if getattr(policy, "has_comm_head", False):
+                    a_t, m_t, _, _, _, _ = policy.get_actions_and_values(obs_t, deterministic=True)
+                    for i, a in enumerate(env.possible_agents):
+                        actions[a] = {"action": int(a_t[i].item()), "message": int(m_t[i].item())}
+                else:
+                    a_t, _, _, _ = policy.get_action_and_value(obs_t, deterministic=True)
+                    for i, a in enumerate(env.possible_agents):
+                        actions[a] = int(a_t[i].item())
         else:
             for a in env.possible_agents:
                 actions[a] = 0

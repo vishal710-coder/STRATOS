@@ -92,7 +92,7 @@ graph TD
 ### Quick Start
 ```bash
 # Clone or enter repository directory
-cd e:/STRATOS
+cd STRATOS
 
 # Create and activate virtual environment
 python -m venv .venv

@@ -116,9 +116,11 @@ with tab_eval:
 
         st.dataframe(
             filtered_df[[
-                "episode_id", "scenario_name", "coordination_mode", "opponent_strategy",
-                "winner", "duration_steps", "team_reward", "friendly_units_survived",
-                "enemy_units_eliminated", "friendly_resources_collected", "messages_exchanged"
+                c for c in [
+                    "episode_id", "scenario_name", "coordination_mode", "opponent_strategy",
+                    "winner", "win_type", "duration_steps", "team_reward", "friendly_units_survived",
+                    "enemy_units_eliminated", "friendly_resources_collected", "messages_exchanged"
+                ] if c in filtered_df.columns
             ]],
             use_container_width=True,
         )
@@ -145,8 +147,9 @@ with tab_eval:
             fig2, ax2 = plt.subplots(figsize=(6, 3.5), facecolor="#0b0f19")
             ax2.set_facecolor("#151d30")
             modes = ["coordinated", "independent"]
-            surv_means = [filtered_df[filtered_df["coordination_mode"] == m]["friendly_units_survived"].mean() for m in modes]
-            ax2.bar(["Coordinated", "Independent"], surv_means, color=["#38bdf8", "#94a3b8"])
+            surv_means = [filtered_df[filtered_df["coordination_mode"] == m]["friendly_units_survived"].mean() for m in modes if m in filtered_df["coordination_mode"].values]
+            if surv_means:
+                ax2.bar([m.capitalize() for m in modes if m in filtered_df["coordination_mode"].values], surv_means, color=["#38bdf8", "#94a3b8"])
             ax2.set_ylabel("Avg Units Survived (Max 3)", color="#e2e8f0")
             ax2.tick_params(colors="#94a3b8")
             st.pyplot(fig2)
@@ -176,18 +179,20 @@ with tab_training:
 
 # TAB 4: SYSTEM ARCHITECTURE
 with tab_config:
-    st.subheader("System Architecture & Configuration Specifications")
+    st.subheader("System Architecture & Configuration Specifications (v2)")
     st.markdown(
         """
-        - **MARL Paradigm**: Shared Centralized/Decentralized Actor-Critic Architecture (PPO)
-        - **Observation Space**: 49 Continuous Dimensions (Normalized)
-        - **Action Space**: 7 Discrete Primitives (Hold, Fallback, Siege Base, Harvest, Engage Enemy, Defend Perimeter, Retreat)
-        - **Agent Roles**:
-            - **Commander**: Strategic prioritization & resource coordination
-            - **Defense Guard**: High armor interceptor defending HQ perimeter
-            - **Attack Striker**: Agile long-range attacker exploiting enemy weaknesses
-        - **Communication Subsystem**:
-            - Real-time symbolic message bus routing alerts (`ENEMY_DETECTED`, `REQUEST_SUPPORT`, `DEFEND_BASE`, `RESUME_OFFENSE`)
-            - Observation integration via 6 dedicated feature channels
+        - **MARL Paradigm**: MAPPO (Multi-Agent PPO) with Dual-Head Actor (Shared Weights) and Centralized Critic
+        - **Observation Space**: 67 Dimensions (Partially Observable):
+            - 46 dims: Local state (unit status, friendly/enemy base, visible teammates, visible enemies, resources, global, storm)
+            - 18 dims: Received learned message tokens (2 teammates × 9 one-hot tokens, 1-step transmission delay)
+            - 3 dims: Agent role one-hot badge (`commander`, `defense`, `attack`)
+        - **Action Space**:
+            - Kinematic head: 7 discrete primitives (Hold, Move Base, Move Enemy Base, Move Resource, Attack Nearest Enemy, Defend Perimeter, Tactical Retreat)
+            - Communication head: 9 discrete learned tokens (0=silent, 1..8=learned tactical signals)
+        - **Stochastic Dynamics & Events**:
+            - Seeded RNG (`np.random.default_rng`) governing spawns, stat jitter, dynamic drift
+            - Dynamic hazard storms, enemy wave spawns, opponent strategy switching, supply crates
+            - Timeout adjudication strictly yields **DRAW** (no resource hoarding win)
         """
     )

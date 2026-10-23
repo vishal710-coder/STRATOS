@@ -126,6 +126,26 @@ class BattlefieldRenderer:
             name_txt = self.font_small.render(f"{team.upper()} HQ ({int(base.hp)})", True, COLOR_TEXT_MAIN)
             self.screen.blit(name_txt, (bx - name_txt.get_width() // 2, by + 30))
 
+        # 3b. Draw Dynamic Events (Storm Hazard & Supply Drops)
+        if getattr(state, "storm", None) and state.storm.active:
+            sx, sy = int(state.storm.x), int(state.storm.y + 40)
+            s_rad = int(state.storm.radius)
+            storm_surf = pygame.Surface((s_rad * 2 + 10, s_rad * 2 + 10), pygame.SRCALPHA)
+            pygame.draw.circle(storm_surf, (220, 50, 80, 75), (s_rad + 5, s_rad + 5), s_rad)
+            pygame.draw.circle(storm_surf, (255, 90, 110, 190), (s_rad + 5, s_rad + 5), s_rad, 3)
+            self.screen.blit(storm_surf, (sx - s_rad - 5, sy - s_rad - 5))
+            s_txt = self.font_small.render("! HAZARD STORM !", True, (255, 130, 150))
+            self.screen.blit(s_txt, (sx - s_txt.get_width() // 2, sy - 8))
+
+        if getattr(state, "supply_drop", None) and not state.supply_drop.collected:
+            dx, dy = int(state.supply_drop.x), int(state.supply_drop.y + 40)
+            pygame.draw.rect(self.screen, (30, 160, 100), (dx - 12, dy - 12, 24, 24), border_radius=4)
+            pygame.draw.rect(self.screen, (255, 255, 255), (dx - 12, dy - 12, 24, 24), 2, border_radius=4)
+            pygame.draw.line(self.screen, (255, 255, 255), (dx - 6, dy), (dx + 6, dy), 3)
+            pygame.draw.line(self.screen, (255, 255, 255), (dx, dy - 6), (dx, dy + 6), 3)
+            d_txt = self.font_small.render("+SUPPLY+", True, (60, 240, 160))
+            self.screen.blit(d_txt, (dx - d_txt.get_width() // 2, dy + 14))
+
         # 4. Draw Units
         # Friendly units
         role_colors = {
@@ -141,6 +161,22 @@ class BattlefieldRenderer:
         for u in state.enemy_units.values():
             if u.is_alive:
                 self._draw_unit(u, COLOR_TEXT_RED, is_friendly=False)
+
+        # 4b. Draw Floating Message Tokens between communicating teammates
+        if hasattr(self.env, "_delivered_messages") and self.env.enable_communication:
+            for recipient_id, in_msgs in self.env._delivered_messages.items():
+                recip_u = state.friendly_units.get(recipient_id)
+                if recip_u and recip_u.is_alive:
+                    for sender_id, token in in_msgs.items():
+                        if token > 0:
+                            sender_u = state.friendly_units.get(sender_id)
+                            if sender_u and sender_u.is_alive:
+                                mx = int((sender_u.x + recip_u.x) / 2)
+                                my = int((sender_u.y + recip_u.y) / 2 + 40)
+                                pygame.draw.circle(self.screen, (30, 45, 65), (mx, my), 11)
+                                pygame.draw.circle(self.screen, (255, 215, 40), (mx, my), 11, 2)
+                                tok_surf = self.font_small.render(f"T{token}", True, (255, 240, 90))
+                                self.screen.blit(tok_surf, (mx - tok_surf.get_width() // 2, my - 6))
 
         # 5. Top Status Header
         self._draw_top_bar(state)
@@ -290,10 +326,16 @@ class BattlefieldRenderer:
                     self.paused = not self.paused
                 elif event.key == pygame.K_r:
                     self.env.reset()
-                elif event.key == pygame.K_m:
+                elif event.key in (pygame.K_m, pygame.K_c):
                     new_mode = "independent" if self.env.coordination_mode == "coordinated" else "coordinated"
                     self.env.coordination_mode = new_mode
+                    self.env.enable_communication = (new_mode == "coordinated")
                     self.env.coordinator.coordination_mode = new_mode
+                    self.env.reset()
+                elif event.key == pygame.K_o:
+                    opps = ["aggressive", "defensive", "resource_focused", "mixed"]
+                    curr_idx = opps.index(self.env.opponent_strategy) if self.env.opponent_strategy in opps else 0
+                    self.env.opponent_strategy = opps[(curr_idx + 1) % len(opps)]
                     self.env.reset()
                 elif event.key == pygame.K_UP:
                     self.fps = min(120, self.fps + 10)
@@ -328,24 +370,19 @@ class BattlefieldRenderer:
         # Termination Reason
         fb = state.bases.get("friendly")
         eb = state.bases.get("enemy")
-        friendly_alive = any(u.is_alive for u in state.friendly_units.values())
-        enemy_alive = any(u.is_alive for u in state.enemy_units.values())
 
-        f_score = (fb.hp if fb else 0) + state.friendly_resources * 0.5
-        e_score = (eb.hp if eb else 0) + state.enemy_resources * 0.5
-
-        if fb and fb.hp <= 0:
+        if state.win_type == "timeout_draw":
+            reason = "Time Limit Reached (300 steps): Match Ended in DRAW (No resource adjudication)"
+        elif state.win_type == "base_destroyed":
+            reason = f"{'Friendly HQ Base' if is_loss else 'Enemy HQ Base'} Destroyed"
+        elif state.win_type == "wipeout":
+            reason = f"{'Friendly Squad' if is_loss else 'Enemy Squad'} Completely Eliminated"
+        elif fb and fb.hp <= 0:
             reason = "Friendly Headquarters Structure Destroyed"
         elif eb and eb.hp <= 0:
             reason = "Enemy Headquarters Base Destroyed"
-        elif not friendly_alive:
-            reason = "Friendly Squad Eliminated (Squad Wipeout)"
-        elif not enemy_alive:
-            reason = "Enemy Squad Eliminated (Full Wipeout)"
-        elif state.truncated:
-            reason = f"300-Step Limit: Score Decision ({f_score:.1f} vs {e_score:.1f})"
         else:
-            reason = "Simulation Episode Concluded"
+            reason = "Simulation Concluded"
 
         r_surf = self.font_body.render(f"Conclusion: {reason}", True, COLOR_TEXT_MAIN)
         self.screen.blit(r_surf, (cx + (card_w - r_surf.get_width()) // 2, cy + 62))
@@ -378,7 +415,7 @@ class BattlefieldRenderer:
 
         # Footer Action Guide
         pygame.draw.line(self.screen, COLOR_PANEL_BORDER, (cx + 30, cy + 285), (cx + card_w - 30, cy + 285), 1)
-        hint = self.font_body.render("[PRESS ANY KEY] Start Next Match  |  [M] Toggle Mode  |  [Q] Exit", True, COLOR_TEXT_GOLD)
+        hint = self.font_body.render("[PRESS ANY KEY] Next Match | [C] Comm Mode | [O] Opponent | [Q] Exit", True, COLOR_TEXT_GOLD)
         self.screen.blit(hint, (cx + (card_w - hint.get_width()) // 2, cy + 310))
         sub_hint = self.font_small.render("Match paused for inspection. Press any key whenever you are ready.", True, COLOR_TEXT_DIM)
         self.screen.blit(sub_hint, (cx + (card_w - sub_hint.get_width()) // 2, cy + 345))
@@ -399,9 +436,14 @@ class BattlefieldRenderer:
                     agent_obs = np.array([obs[agent] for agent in self.env.possible_agents])
                     obs_t = torch.as_tensor(agent_obs, dtype=torch.float32)
                     with torch.no_grad():
-                        action_t, _, _, _ = self.policy.get_action_and_value(obs_t, deterministic=True)
-                    for i, agent in enumerate(self.env.possible_agents):
-                        action_dict[agent] = int(action_t[i].item())
+                        if getattr(self.policy, "has_comm_head", False):
+                            action_t, msg_t, _, _, _, _ = self.policy.get_actions_and_values(obs_t, deterministic=True)
+                            for i, agent in enumerate(self.env.possible_agents):
+                                action_dict[agent] = {"action": int(action_t[i].item()), "message": int(msg_t[i].item())}
+                        else:
+                            action_t, _, _, _ = self.policy.get_action_and_value(obs_t, deterministic=True)
+                            for i, agent in enumerate(self.env.possible_agents):
+                                action_dict[agent] = int(action_t[i].item())
                 else:
                     # Autonomous heuristic fallback
                     for agent in self.env.possible_agents:
@@ -427,10 +469,17 @@ class BattlefieldRenderer:
                                 if event.key in (pygame.K_ESCAPE, pygame.K_q):
                                     pygame.quit()
                                     return
-                                elif event.key == pygame.K_m:
+                                elif event.key in (pygame.K_m, pygame.K_c):
                                     new_mode = "independent" if self.env.coordination_mode == "coordinated" else "coordinated"
                                     self.env.coordination_mode = new_mode
+                                    self.env.enable_communication = (new_mode == "coordinated")
                                     self.env.coordinator.coordination_mode = new_mode
+                                    waiting = False
+                                    break
+                                elif event.key == pygame.K_o:
+                                    opps = ["aggressive", "defensive", "resource_focused", "mixed"]
+                                    curr_idx = opps.index(self.env.opponent_strategy) if self.env.opponent_strategy in opps else 0
+                                    self.env.opponent_strategy = opps[(curr_idx + 1) % len(opps)]
                                     waiting = False
                                     break
                                 else:
