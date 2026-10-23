@@ -152,6 +152,11 @@ class GameState:
     supply_drop_step: int = 999999
     storm_spawn_step: int = 999999
 
+    # Hidden asymmetric information
+    weak_lane: int = 1                  # 0: Top, 1: Middle, 2: Bottom lane
+    wave_flank: int = 0                 # 0: Top, 1: Middle, 2: Bottom flank
+    wave_warning_active: bool = False   # True when defense warning sensor is active
+
     def is_game_over(self) -> bool:
         """Check if terminal condition or truncation limit is met.
 

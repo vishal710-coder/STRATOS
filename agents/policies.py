@@ -23,8 +23,8 @@ class ActorCriticPolicy(nn.Module):
 
     def __init__(
         self,
-        obs_dim: int = 67,
-        act_dim: int = 7,
+        obs_dim: int = 73,
+        act_dim: int = 9,
         msg_dim: int = 9,
         hidden_dim: int = 256,
         has_comm_head: bool = True,

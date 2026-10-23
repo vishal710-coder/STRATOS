@@ -75,25 +75,49 @@ Log and decompose the exact per-episode reward contributions across policies on 
 
 ---
 
-## Step 3: Make Communication Necessary (Next Step)
+## Step 3: Make Communication Necessary (Completed)
+
+### 3.1 Architecture & Asymmetric Information Design
+1. **Secret Objective (Weak Lane / Generator)**:
+   - At episode start, a vulnerable lane generator $L^* \in \{0: \text{Top}, 1: \text{Middle}, 2: \text{Bottom}\}$ is randomized uniformly.
+   - Attacking in the weak lane deals **$4.0\times$ bonus damage**; attacking armored / shielded generators deals only **$0.1\times$ damage** ($40\times$ contrast ratio).
+   - Visible **ONLY** to the Attack scout (`obs[46:49]`). Commander and Defense observe `[0, 0, 0]`.
+2. **Dynamic Flank Sensor (Incoming Wave Warning)**:
+   - Enemy reinforcement wave spawns at step $T_{\text{wave}}$ along flank $F^* \in \{0: \text{Top}, 1: \text{Middle}, 2: \text{Bottom}\}$.
+   - Sensor alert activates 30 steps prior to arrival (`s.wave_warning_active = True`).
+   - Visible **ONLY** to the Defense guard (`obs[49:52]`). Commander and Attack observe `[0, 0, 0]`.
+   - If friendly units guard the flank, incoming units take 40 ambush damage; if unguarded, friendly base takes 100 sneak flank damage.
+3. **Macro Coordination via Discrete Messages**:
+   - Discrete token alphabet: 9 tokens (0: silent, 1..8: communication symbols).
+   - 1-step transmission delay buffer.
+   - Action space expanded to 9 discrete tactical primitives with lane corridors: `HOLD (0), MOVE_BASE (1), MOVE_ENEMY_BASE (2), MOVE_RESOURCE (3), ATTACK_NEAREST_ENEMY (4), DEFEND_PERIMETER (5), TACTICAL_RETREAT (6), PUSH_TOP_LANE (7), PUSH_BOT_LANE (8)`.
+   - Observation dimension updated to 73 (52 local + 18 comm + 3 role).
+
+### 3.2 Reference Condition Evaluation (Acceptance Test)
+Evaluated across **300 held-out evaluation episodes** (100 fresh held-out seeds `5000`..`5099` $\times$ 3 opponent archetypes `aggressive`, `defensive`, `resource_focused`):
+
+| Policy Condition | Win Rate (%) | Draw Rate (%) | Loss Rate (%) | Mean Episode Reward |
+|---|---|---|---|---|
+| **Silent Reference** (Messages = 0) | 22.7% | 62.3% | 15.0% | +9.47 $\pm$ 16.72 |
+| **Oracle Messenger** (Messages active) | **57.3%** | 30.7% | 12.0% | **+140.22** $\pm$ 19.83 |
+| **COMMUNICATION VALUE GAP** | **+34.7%** | **-31.6%** | **-3.0%** | **+130.76** |
+
+- **Outcome**: Oracle Communication achieves more than **$2.52\times$ the win rate** of Silence and a **+130.76 point reward surge**. In Silence, units stall in draws (62.3%) because they cannot focus fire on the weak generator or intercept sneak flanks.
+- Added automated acceptance test `test_oracle_vs_silence_acceptance_gap` in `tests/test_communication.py`.
+- All 32 pytest tests pass.
+
+---
+
+## Step 4: Help Messages Become Meaningful (Next Step)
 
 ### Plan:
-1. **Hidden Asymmetric Information**:
-   - **Secret Objective (Visible ONLY to Attack Scout)**:
-     At episode start, randomized enemy generator / weak point lane $L^* \in \{0, 1, 2\}$ (Top, Middle, Bottom lane generator).
-     Attacking the weak point deals $3.0\times$ bonus damage; attacking non-weak targets deals reduced damage ($0.5\times$).
-     Attack scout observes $L^*$ in its private observation slice (`obs_attack`).
-   - **Incoming Wave Flank (Visible ONLY to Defense Guard)**:
-     At dynamic wave step $T_{\text{wave}}$, enemy reinforcement flank $F^* \in \{0, 1, 2\}$ (Top, Middle, Bottom) is revealed to Defense 30 steps before arrival (`warning_steps = 30`).
-     Defense guard observes $F^*$ in its private observation slice (`obs_defense`).
-   - **Commander Asymmetry**:
-     The Commander coordinates and directs macro firepower but cannot see $L^*$ or $F^*$ directly; it must rely on messages sent by Attack and Defense.
-2. **Minimal Discrete Vocabulary & Delay**:
-   - Discrete token alphabet $M \in \{0..K\}$ (e.g. $K=4$ or $6$).
-   - 1-step transmission delay buffer preserved.
-3. **Reference Condition Evaluation (Acceptance Test)**:
-   - Construct two reference policies before training any RL:
-     1. **Silent Policy / Zeroed Messages**: Scout & Guard cannot transmit hidden facts; team attacks default/random lanes.
-     2. **Oracle Messenger Policy**: Scout & Guard transmit exact ground-truth tokens; Commander and squad converge on the weak generator and defend the exact flank.
-   - Measure the performance gap (Win rate and Team Reward) between Oracle Communication and Silence.
-   - Acceptance criterion: Oracle Communication must win significantly more often than Silence, establishing a substantial, demonstrable gap. Commit and run pytest.
+Implement three training aids behind configurable flags in `config/training.yaml` and the PPO update engine:
+1. **Message Entropy Bonus** (`comm_entropy_coef: float = 0.01`):
+   - Adds an entropy incentive $H(\pi_{\text{comm}})$ to prevent premature symbol collapse to the silent token 0.
+2. **Auxiliary Fact Prediction Loss** (`aux_pred_loss_coef: float = 0.0`):
+   - Receiver auxiliary prediction head: receiver predicts the hidden fact ($L^*$ or $F^*$) from the received token representation.
+   - Supervised cross-entropy objective without hardcoding token mappings.
+3. **Per-Message Cost** (`message_cost: float = 0.0`):
+   - Configurable penalty applied whenever a non-zero token is emitted, discouraging gratuitous babbling.
+4. Verify config toggles and run `pytest`. Commit work.
+

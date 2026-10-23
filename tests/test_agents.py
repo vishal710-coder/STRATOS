@@ -59,8 +59,8 @@ def test_dual_head_policy_shapes():
     """Verify dual-head ActorCriticPolicy (Action + Learned Communication Token)."""
     from agents.policies import CentralizedCritic
 
-    policy = ActorCriticPolicy(obs_dim=67, act_dim=7, msg_dim=9, hidden_dim=128, has_comm_head=True)
-    obs = torch.randn(5, 67)
+    policy = ActorCriticPolicy(obs_dim=73, act_dim=9, msg_dim=9, hidden_dim=128, has_comm_head=True)
+    obs = torch.randn(5, 73)
 
     actions, msgs, act_logp, msg_logp, entropy, values = policy.get_actions_and_values(obs)
 
@@ -72,7 +72,7 @@ def test_dual_head_policy_shapes():
     assert values.shape == (5, 1)
 
     # Check discrete ranges
-    assert torch.all(actions >= 0) and torch.all(actions < 7)
+    assert torch.all(actions >= 0) and torch.all(actions < 9)
     assert torch.all(msgs >= 0) and torch.all(msgs < 9)
 
 

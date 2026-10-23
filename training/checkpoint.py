@@ -51,8 +51,8 @@ def load_checkpoint(
     checkpoint = torch.load(target_path, map_location=device)
 
     if policy is None:
-        obs_dim = checkpoint.get("obs_dim", 67)
-        act_dim = checkpoint.get("act_dim", 7)
+        obs_dim = checkpoint.get("obs_dim", 73)
+        act_dim = checkpoint.get("act_dim", 9)
         has_comm = checkpoint.get(
             "has_comm_head",
             "comm_actor.weight" in checkpoint.get("model_state_dict", {})

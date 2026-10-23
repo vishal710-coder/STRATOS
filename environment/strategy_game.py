@@ -66,8 +66,9 @@ class StrategyGameEnv:
         # Observation dimensions:
         # [self_status(5) + friendly_base(3) + enemy_base(3) + teammates(2x4=8) +
         #  enemies(3x4=12) + resources(3x3=9) + global(3) + storm(3) = 46 local]
+        # + hidden_info(3 weak_lane + 3 wave_flank = 6) = 52 local
         # + received_messages(2 * msg_tokens) + role_id(3 or 0)
-        self.local_obs_dim = 46
+        self.local_obs_dim = 52
         self.msg_obs_dim = 2 * self.msg_tokens  # messages from 2 teammates
         self.role_obs_dim = 3 if self.include_role_id else 0
         self.obs_dim = self.local_obs_dim + self.msg_obs_dim + self.role_obs_dim
@@ -237,6 +238,10 @@ class StrategyGameEnv:
             rr = dyn["resource_respawn"]["interval_range"]
             res_spawn_step = int(self.rng.integers(rr[0], rr[1] + 1))
 
+        # Randomize hidden asymmetric facts
+        weak_lane = int(self.rng.integers(0, 3))
+        wave_flank = int(self.rng.integers(0, 3))
+
         self.state = GameState(
             step_count=0,
             max_steps=self.max_steps,
@@ -260,6 +265,9 @@ class StrategyGameEnv:
             enemy_strategy_switch_step=switch_step,
             supply_drop_step=supply_step,
             next_resource_spawn_step=res_spawn_step,
+            weak_lane=weak_lane,
+            wave_flank=wave_flank,
+            wave_warning_active=False,
         )
 
         # Reset message buffers
@@ -412,7 +420,19 @@ class StrategyGameEnv:
             unit.move_towards(fb.x + 30.0, fb.y, self.map_w, self.map_h)
 
         elif action == ActionType.MOVE_ENEMY_BASE:
-            unit.move_towards(eb.x - 30.0, eb.y, self.map_w, self.map_h)
+            unit.move_towards(700.0, 300.0, self.map_w, self.map_h)
+
+        elif action == ActionType.PUSH_TOP_LANE:
+            if unit.x < 300.0 and unit.y > 160.0:
+                unit.move_towards(220.0, 120.0, self.map_w, self.map_h)
+            else:
+                unit.move_towards(700.0, 120.0, self.map_w, self.map_h)
+
+        elif action == ActionType.PUSH_BOT_LANE:
+            if unit.x < 300.0 and unit.y < 440.0:
+                unit.move_towards(220.0, 480.0, self.map_w, self.map_h)
+            else:
+                unit.move_towards(700.0, 480.0, self.map_w, self.map_h)
 
         elif action == ActionType.MOVE_RESOURCE:
             # Move to closest non-empty resource node that is visible
@@ -502,13 +522,27 @@ class StrategyGameEnv:
                             else:
                                 step_events["enemy_units_killed"] += 1
 
+        # Wave warning sensor (Defense receives early alert 30 steps before arrival)
+        warning_lead = 30
+        if (s.enemy_wave_step - warning_lead <= step < s.enemy_wave_step + 10) and s.enemy_wave_step < 999999:
+            s.wave_warning_active = True
+        else:
+            s.wave_warning_active = False
+
         # --- Enemy reinforcement wave ---
         if step == s.enemy_wave_step:
             wave_cfg = dyn.get("enemy_wave", {})
             num_range = wave_cfg.get("num_units_range", [1, 2])
             num_new = int(self.rng.integers(num_range[0], num_range[1] + 1))
-            flanks = wave_cfg.get("flank_options", ["top", "middle", "bottom"])
-            flank = flanks[int(self.rng.integers(0, len(flanks)))]
+            flanks = ["top", "middle", "bottom"]
+            flank = flanks[s.wave_flank]
+            flank_y_center = 90.0 if flank == "top" else (300.0 if flank == "middle" else 510.0)
+
+            # Check if friendly units are guarding this flank
+            guard_present = any(
+                f.is_alive and abs(f.y - flank_y_center) <= 120.0 and f.x <= 550.0
+                for f in s.friendly_units.values()
+            )
 
             e_defaults = self.cfg["enemy_squad"]["unit_defaults"]
             rand_cfg = self.cfg.get("randomization", {})
@@ -525,10 +559,16 @@ class StrategyGameEnv:
                     ey = float(self.rng.uniform(200, 400))
                 ex = float(self.rng.uniform(self.map_w - 80, self.map_w - 20))
 
+                spawn_hp = float(e_defaults["hp"]) * stat_mult
+                if guard_present:
+                    # Friendly guard ambushes the incoming wave!
+                    spawn_hp = max(10.0, spawn_hp - 40.0)
+                    step_events["enemy_unit_damage"] += 40.0
+
                 s.enemy_units[eid] = Unit(
                     id=eid, team="enemy", role="enemy_grunt", name=f"Wave_{j+1}",
                     x=ex, y=ey,
-                    hp=float(e_defaults["hp"]) * stat_mult,
+                    hp=spawn_hp,
                     max_hp=float(e_defaults["max_hp"]) * stat_mult,
                     speed=float(e_defaults["speed"]) * stat_mult,
                     damage=float(e_defaults["damage"]) * stat_mult,
@@ -536,6 +576,12 @@ class StrategyGameEnv:
                     vision_range=float(e_defaults["vision_range"]),
                     cooldown=int(e_defaults["cooldown"]),
                 )
+
+            if not guard_present:
+                # Unguarded flank: sneak attack inflicts surprise damage to friendly base
+                fb = s.bases["friendly"]
+                fb.hp = max(0.0, fb.hp - 100.0)
+                step_events["friendly_base_damage"] += 100.0
 
         # --- Enemy strategy switch ---
         if step == s.enemy_strategy_switch_step:
@@ -666,11 +712,28 @@ class StrategyGameEnv:
                         f.kills += 1
                         events["enemy_units_killed"] += 1
 
-                elif f.distance_to(eb.x, eb.y) <= f.attack_range + 30.0:
-                    eb.hp = max(0.0, eb.hp - f.damage)
+                elif f.distance_to(eb.x, eb.y) <= f.attack_range + 30.0 or min(
+                    math.hypot(f.x - 700.0, f.y - 120.0),
+                    math.hypot(f.x - 700.0, f.y - 300.0),
+                    math.hypot(f.x - 700.0, f.y - 480.0),
+                ) <= f.attack_range + 30.0:
+                    if f.y < 210.0:
+                        attacked_lane = 0
+                    elif f.y < 390.0:
+                        attacked_lane = 1
+                    else:
+                        attacked_lane = 2
+
+                    if attacked_lane == self.state.weak_lane:
+                        multiplier = 4.0  # Vulnerable weak generator / undefended flank
+                    else:
+                        multiplier = 0.1  # Heavy energy shield absorbs attack
+
+                    eff_damage = f.damage * multiplier
+                    eb.hp = max(0.0, eb.hp - eff_damage)
                     f.cooldown_timer = f.cooldown
-                    f.damage_dealt += f.damage
-                    events["enemy_base_damage"] += f.damage
+                    f.damage_dealt += eff_damage
+                    events["enemy_base_damage"] += eff_damage
 
         # Enemy Attacks
         for e in alive_enemies:
@@ -858,7 +921,18 @@ class StrategyGameEnv:
             ]
         idx += 3
 
-        # 9. Received messages (2 teammates * msg_tokens one-hot)
+        # 9. Hidden asymmetric information (3 weak_lane dims + 3 wave_flank dims = 6 values)
+        # Attack scout sees weak_lane (one-hot)
+        if agent_id == "attack" and self.state.weak_lane in (0, 1, 2):
+            obs[idx + self.state.weak_lane] = 1.0
+        idx += 3
+
+        # Defense guard sees wave_flank only when warning sensor is active (one-hot)
+        if agent_id == "defense" and self.state.wave_warning_active and self.state.wave_flank in (0, 1, 2):
+            obs[idx + self.state.wave_flank] = 1.0
+        idx += 3
+
+        # 10. Received messages (2 teammates * msg_tokens one-hot)
         if self.enable_communication and self.coordination_mode == "coordinated":
             other_ids = [a for a in self.possible_agents if a != agent_id]
             for i_other, other_id in enumerate(other_ids):
