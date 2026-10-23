@@ -1,4 +1,4 @@
-# STRATOS AI - Strategy Game Environment Configuration
+# STRATOS AI - Strategy Game Environment Configuration (v2 — Dynamic & Stochastic)
 
 map:
   width: 800
@@ -35,7 +35,7 @@ units:
     damage: 18.0
     attack_range: 95.0
     cooldown: 5 # frames
-    vision_range: 220.0
+    vision_range: 150.0   # Reduced: sees teammates HP but limited map view
     start_pos: [140, 300]
     color: [255, 215, 0] # Amber / Gold
 
@@ -47,7 +47,7 @@ units:
     damage: 22.0
     attack_range: 85.0
     cooldown: 5
-    vision_range: 190.0
+    vision_range: 130.0   # Reduced: strong near-base awareness
     start_pos: [140, 240]
     color: [50, 205, 50] # Emerald Green
 
@@ -59,7 +59,7 @@ units:
     damage: 32.0
     attack_range: 120.0
     cooldown: 6
-    vision_range: 240.0
+    vision_range: 200.0   # Longest vision: scout role
     start_pos: [140, 360]
     color: [186, 85, 211] # Purple / Plasma
 
@@ -82,3 +82,54 @@ simulation:
   fps: 30
   seed: 42
   time_step_sec: 0.1
+
+# ─── Per-Episode Randomization ────────────────────────────────────
+randomization:
+  spawn_jitter: 30            # px jitter radius for spawn positions
+  stat_multiplier_range: [0.85, 1.15]  # +/-15% on HP/damage/speed per unit per episode
+  resource_pos_jitter: 50     # px jitter for resource node positions
+  resource_amount_range: [300, 700]     # random initial amount per node
+  resource_regen_range: [0.5, 2.0]     # random regen rate per node
+
+# ─── Dynamic Events During Episode ─────────────────────────────────
+dynamic_events:
+  # Storm / Hazard zone
+  storm:
+    enabled: true
+    spawn_step_range: [30, 100]     # step at which storm appears
+    radius: 60.0                     # damage radius
+    damage_per_step: 5.0             # HP per step to units inside
+    drift_speed: 1.5                 # px/step drift across map
+    duration_range: [60, 150]        # how long storm lasts (steps)
+
+  # Enemy reinforcement waves
+  enemy_wave:
+    enabled: true
+    spawn_step_range: [80, 200]     # step range for wave arrival
+    num_units_range: [1, 2]          # how many extra enemies
+    flank_options: ["top", "middle", "bottom"]
+
+  # Resource node respawn
+  resource_respawn:
+    enabled: true
+    interval_range: [50, 120]       # steps between new node spawns
+    max_total_nodes: 5               # cap on total active nodes
+
+  # Enemy strategy switch mid-episode
+  enemy_strategy_switch:
+    enabled: true
+    switch_step_range: [60, 200]    # step at which enemy switches
+    strategies: ["aggressive", "defensive", "resource_focused"]
+
+  # Supply drop (one-time heal pickup)
+  supply_drop:
+    enabled: true
+    spawn_step_range: [50, 180]
+    heal_amount: 0.5                 # fraction of max_hp restored
+    visible_range: -1                # -1 means uses unit's own vision_range
+
+# ─── Communication ──────────────────────────────────────────────────
+communication:
+  vocab_size: 8                      # K meaningful message tokens (+ 1 silent = 9 total)
+  message_delay: 1                   # steps of delivery delay
+  message_cost: 0.0                  # per-message penalty (0 = free)

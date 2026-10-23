@@ -1,4 +1,12 @@
-"""PettingZoo Parallel-compatible Multi-Agent Strategy Game Environment."""
+"""PettingZoo Parallel-compatible Multi-Agent Strategy Game Environment (v2).
+
+Dynamic, stochastic, partially-observable team game with:
+- Seeded RNG for reproducibility (same seed = identical episode)
+- Per-episode randomization of spawns, stats, resources
+- Dynamic events: storm, enemy waves, strategy switch, supply drops, resource respawn
+- Partial observability: each unit sees only within its vision radius
+- Support for learned communication (agent-emitted message tokens)
+"""
 
 import math
 from typing import Any, Dict, List, Optional, Tuple
@@ -7,31 +15,34 @@ from gymnasium import spaces
 import numpy as np
 import yaml
 
-from environment.actions import ActionType, NUM_ACTIONS
-from environment.game_state import Base, GameState, ResourceNode, Unit
-from environment.rewards import RewardCalculator
 from communication.coordinator import TacticalCoordinator
 from communication.messages import Message, MessageType
+from environment.actions import ActionType, NUM_ACTIONS
+from environment.game_state import Base, GameState, ResourceNode, StormZone, SupplyDrop, Unit
+from environment.rewards import RewardCalculator
 
 
 class StrategyGameEnv:
     """
-    STRATOS AI Strategy Simulation Environment.
+    STRATOS AI Strategy Simulation Environment (v2).
     Follows PettingZoo Parallel API standard for multi-agent reinforcement learning.
     """
 
-    metadata = {"render_modes": ["human", "rgb_array"], "name": "stratos_v1"}
+    metadata = {"render_modes": ["human", "rgb_array"], "name": "stratos_v2"}
 
     def __init__(
         self,
         config_path: str = "config/game.yaml",
         coordination_mode: str = "coordinated",
         opponent_strategy: str = "aggressive",
-        include_role_id: bool = False,
+        enable_communication: bool = True,
+        include_role_id: bool = True,
+        **kwargs,
     ):
         self.config_path = config_path
         self.coordination_mode = coordination_mode
         self.opponent_strategy = opponent_strategy
+        self.enable_communication = enable_communication
         self.include_role_id = include_role_id
 
         # Load config
@@ -45,26 +56,52 @@ class StrategyGameEnv:
         self.possible_agents = ["commander", "defense", "attack"]
         self.agents = list(self.possible_agents)
 
-        # Observation dimension: 49 floats without role_id, or 52 with 3-dim role one-hot badge
-        self.obs_dim = 52 if include_role_id else 49
+        # Communication config
+        comm_cfg = self.cfg.get("communication", {})
+        self.vocab_size = int(comm_cfg.get("vocab_size", 8))  # K meaningful tokens
+        self.msg_tokens = self.vocab_size + 1  # +1 for "silent" token (index 0)
+        self.msg_delay = int(comm_cfg.get("message_delay", 1))
+        self.msg_cost = float(comm_cfg.get("message_cost", 0.0))
+
+        # Observation dimensions:
+        # [self_status(5) + friendly_base(3) + enemy_base(3) + teammates(2x4=8) +
+        #  enemies(3x4=12) + resources(3x3=9) + global(3) + storm(3) = 46 local]
+        # + received_messages(2 * msg_tokens) + role_id(3 or 0)
+        self.local_obs_dim = 46
+        self.msg_obs_dim = 2 * self.msg_tokens  # messages from 2 teammates
+        self.role_obs_dim = 3 if self.include_role_id else 0
+        self.obs_dim = self.local_obs_dim + self.msg_obs_dim + self.role_obs_dim
+
         self._obs_spaces = {
             agent: spaces.Box(low=-1.0, high=1.0, shape=(self.obs_dim,), dtype=np.float32)
             for agent in self.possible_agents
         }
         self._action_spaces = {
-            agent: spaces.Discrete(NUM_ACTIONS)
+            agent: spaces.Dict({
+                "action": spaces.Discrete(NUM_ACTIONS),
+                "message": spaces.Discrete(self.msg_tokens),
+            })
             for agent in self.possible_agents
         }
 
         self.reward_calculator = RewardCalculator()
         self.coordinator = TacticalCoordinator(coordination_mode=coordination_mode)
         self.state: Optional[GameState] = None
-        self.np_random = np.random.RandomState(42)
+
+        # Seeded RNG — ALL randomness flows through this
+        self.rng: np.random.Generator = np.random.default_rng(42)
+
+        # Message buffers: outgoing messages are delivered on the NEXT step
+        self._pending_messages: Dict[str, int] = {}  # agent_id -> token sent this step
+        self._delivered_messages: Dict[str, Dict[str, int]] = {}  # recipient -> {sender: token}
+
+        # Node ID counter for spawned resource nodes
+        self._next_node_id = 10
 
     def observation_space(self, agent: str) -> spaces.Box:
         return self._obs_spaces[agent]
 
-    def action_space(self, agent: str) -> spaces.Discrete:
+    def action_space(self, agent: str) -> spaces.Dict:
         return self._action_spaces[agent]
 
     def reset(
@@ -72,20 +109,30 @@ class StrategyGameEnv:
         seed: Optional[int] = None,
         options: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
-        """Reset environment to initial state."""
+        """Reset environment to initial state with per-episode randomization."""
         if seed is not None:
-            self.np_random = np.random.RandomState(seed)
+            self.rng = np.random.default_rng(seed)
 
         if options and "opponent_strategy" in options:
             self.opponent_strategy = options["opponent_strategy"]
         if options and "coordination_mode" in options:
             self.coordination_mode = options["coordination_mode"]
             self.coordinator.coordination_mode = self.coordination_mode
+        if options and "enable_communication" in options:
+            self.enable_communication = options["enable_communication"]
 
         self.agents = list(self.possible_agents)
         self.coordinator.reset()
 
-        # Initialize Bases
+        # Randomization config
+        rand_cfg = self.cfg.get("randomization", {})
+        spawn_jitter = float(rand_cfg.get("spawn_jitter", 30))
+        stat_range = rand_cfg.get("stat_multiplier_range", [0.85, 1.15])
+        res_jitter = float(rand_cfg.get("resource_pos_jitter", 50))
+        res_amount_range = rand_cfg.get("resource_amount_range", [300, 700])
+        res_regen_range = rand_cfg.get("resource_regen_range", [0.5, 2.0])
+
+        # Initialize Bases (fixed positions — bases don't move)
         fb_cfg = self.cfg["bases"]["friendly"]
         eb_cfg = self.cfg["bases"]["enemy"]
         bases = {
@@ -93,61 +140,102 @@ class StrategyGameEnv:
             "enemy": Base(team="enemy", x=float(eb_cfg["x"]), y=float(eb_cfg["y"]), hp=float(eb_cfg["hp"])),
         }
 
-        # Initialize Resource Nodes
+        # Initialize Resource Nodes (with jitter)
         nodes = []
         for n in self.cfg["resources"]["nodes"]:
+            jx = float(n["x"]) + self.rng.uniform(-res_jitter, res_jitter)
+            jy = float(n["y"]) + self.rng.uniform(-res_jitter, res_jitter)
+            jx = float(np.clip(jx, 50, self.map_w - 50))
+            jy = float(np.clip(jy, 50, self.map_h - 50))
+            amt = float(self.rng.uniform(res_amount_range[0], res_amount_range[1]))
+            regen = float(self.rng.uniform(res_regen_range[0], res_regen_range[1]))
             nodes.append(
                 ResourceNode(
                     id=int(n["id"]),
-                    x=float(n["x"]),
-                    y=float(n["y"]),
-                    amount=float(n["max_amount"]),
-                    max_amount=float(n["max_amount"]),
-                    regen_rate=float(n["regen_rate"]),
+                    x=jx, y=jy,
+                    amount=amt,
+                    max_amount=amt,
+                    regen_rate=regen,
                 )
             )
 
-        # Initialize Friendly Units
+        # Initialize Friendly Units (with spawn jitter and stat multipliers)
         friendly_units = {}
         for role in ["commander", "defense", "attack"]:
             u_cfg = self.cfg["units"][role]
+            stat_mult = float(self.rng.uniform(stat_range[0], stat_range[1]))
+            jx = float(u_cfg["start_pos"][0]) + self.rng.uniform(-spawn_jitter, spawn_jitter)
+            jy = float(u_cfg["start_pos"][1]) + self.rng.uniform(-spawn_jitter, spawn_jitter)
+            jx = float(np.clip(jx, 20, self.map_w / 2 - 20))
+            jy = float(np.clip(jy, 20, self.map_h - 20))
             friendly_units[role] = Unit(
                 id=role,
                 team="friendly",
                 role=role,
                 name=u_cfg["name"],
-                x=float(u_cfg["start_pos"][0]),
-                y=float(u_cfg["start_pos"][1]),
-                hp=float(u_cfg["hp"]),
-                max_hp=float(u_cfg["max_hp"]),
-                speed=float(u_cfg["speed"]),
-                damage=float(u_cfg["damage"]),
+                x=jx, y=jy,
+                hp=float(u_cfg["hp"]) * stat_mult,
+                max_hp=float(u_cfg["max_hp"]) * stat_mult,
+                speed=float(u_cfg["speed"]) * stat_mult,
+                damage=float(u_cfg["damage"]) * stat_mult,
                 attack_range=float(u_cfg["attack_range"]),
                 vision_range=float(u_cfg["vision_range"]),
                 cooldown=int(u_cfg["cooldown"]),
             )
 
-        # Initialize Enemy Units
+        # Initialize Enemy Units (with spawn jitter and stat multipliers)
         enemy_units = {}
         e_defaults = self.cfg["enemy_squad"]["unit_defaults"]
         e_positions = self.cfg["enemy_squad"]["initial_positions"]
         for i, pos in enumerate(e_positions):
             eid = f"enemy_{i+1}"
+            stat_mult = float(self.rng.uniform(stat_range[0], stat_range[1]))
+            jx = float(pos[0]) + self.rng.uniform(-spawn_jitter, spawn_jitter)
+            jy = float(pos[1]) + self.rng.uniform(-spawn_jitter, spawn_jitter)
+            jx = float(np.clip(jx, self.map_w / 2 + 20, self.map_w - 20))
+            jy = float(np.clip(jy, 20, self.map_h - 20))
             enemy_units[eid] = Unit(
                 id=eid,
                 team="enemy",
                 role="enemy_grunt",
                 name=f"Enemy_{i+1}",
-                x=float(pos[0]),
-                y=float(pos[1]),
-                hp=float(e_defaults["hp"]),
-                max_hp=float(e_defaults["max_hp"]),
-                speed=float(e_defaults["speed"]),
-                damage=float(e_defaults["damage"]),
+                x=jx, y=jy,
+                hp=float(e_defaults["hp"]) * stat_mult,
+                max_hp=float(e_defaults["max_hp"]) * stat_mult,
+                speed=float(e_defaults["speed"]) * stat_mult,
+                damage=float(e_defaults["damage"]) * stat_mult,
                 attack_range=float(e_defaults["attack_range"]),
                 vision_range=float(e_defaults["vision_range"]),
                 cooldown=int(e_defaults["cooldown"]),
             )
+
+        # Schedule dynamic events
+        dyn = self.cfg.get("dynamic_events", {})
+
+        storm_step = 999999
+        if dyn.get("storm", {}).get("enabled", False):
+            sr = dyn["storm"]["spawn_step_range"]
+            storm_step = int(self.rng.integers(sr[0], sr[1] + 1))
+
+        wave_step = 999999
+        if dyn.get("enemy_wave", {}).get("enabled", False):
+            wr = dyn["enemy_wave"]["spawn_step_range"]
+            wave_step = int(self.rng.integers(wr[0], wr[1] + 1))
+
+        switch_step = 999999
+        if dyn.get("enemy_strategy_switch", {}).get("enabled", False):
+            ss = dyn["enemy_strategy_switch"]["switch_step_range"]
+            switch_step = int(self.rng.integers(ss[0], ss[1] + 1))
+
+        supply_step = 999999
+        if dyn.get("supply_drop", {}).get("enabled", False):
+            sd = dyn["supply_drop"]["spawn_step_range"]
+            supply_step = int(self.rng.integers(sd[0], sd[1] + 1))
+
+        res_spawn_step = 999999
+        if dyn.get("resource_respawn", {}).get("enabled", False):
+            rr = dyn["resource_respawn"]["interval_range"]
+            res_spawn_step = int(self.rng.integers(rr[0], rr[1] + 1))
 
         self.state = GameState(
             step_count=0,
@@ -161,9 +249,23 @@ class StrategyGameEnv:
             friendly_resources=0.0,
             enemy_resources=0.0,
             winner=None,
+            win_type=None,
             terminated=False,
             truncated=False,
+            storm=None,
+            supply_drop=None,
+            enemy_strategy=self.opponent_strategy,
+            storm_spawn_step=storm_step,
+            enemy_wave_step=wave_step,
+            enemy_strategy_switch_step=switch_step,
+            supply_drop_step=supply_step,
+            next_resource_spawn_step=res_spawn_step,
         )
+
+        # Reset message buffers
+        self._pending_messages = {}
+        self._delivered_messages = {a: {} for a in self.possible_agents}
+        self._next_node_id = 10
 
         obs = {agent: self._get_observation(agent) for agent in self.agents}
         infos = {agent: {} for agent in self.agents}
@@ -171,9 +273,14 @@ class StrategyGameEnv:
 
     def step(
         self,
-        actions: Dict[str, int],
+        actions: Dict[str, Any],
     ) -> Tuple[Dict[str, np.ndarray], Dict[str, float], Dict[str, bool], Dict[str, bool], Dict[str, Any]]:
-        """Advance simulation by 1 discrete step."""
+        """Advance simulation by 1 discrete step.
+
+        actions can be:
+          - Dict[str, int]: action index only (legacy, no communication)
+          - Dict[str, Dict[str, int]]: {"action": int, "message": int}
+        """
         assert self.state is not None, "Call reset() before step()."
         self.state.step_count += 1
         step_events: Dict[str, Any] = {
@@ -185,25 +292,67 @@ class StrategyGameEnv:
             "friendly_units_lost": 0,
             "resources_harvested": 0.0,
             "coordinated_strikes": 0,
+            "storm_damage": 0.0,
         }
+
+        # Parse actions — support both legacy (int) and new (dict with message) formats
+        parsed_actions: Dict[str, int] = {}
+        new_messages: Dict[str, int] = {}
+        for agent_id, act in actions.items():
+            if isinstance(act, dict):
+                parsed_actions[agent_id] = int(act.get("action", 0))
+                new_messages[agent_id] = int(act.get("message", 0))
+            else:
+                parsed_actions[agent_id] = int(act)
+                new_messages[agent_id] = 0  # silent
+
+        # 0. Deliver pending messages from previous step
+        self._delivered_messages = {a: {} for a in self.possible_agents}
+        for sender, token in self._pending_messages.items():
+            for recipient in self.possible_agents:
+                if recipient != sender:
+                    self._delivered_messages[recipient][sender] = token
+
+        # Store this step's messages for delivery next step
+        if self.enable_communication and self.coordination_mode == "coordinated":
+            self._pending_messages = dict(new_messages)
+        else:
+            self._pending_messages = {}
+
+        # Update coordinator state and history for battlefield visualizer / telemetry
+        self.coordinator.step_decay()
+        if self.coordination_mode == "coordinated":
+            for sender, token in new_messages.items():
+                if token > 0:
+                    self.coordinator.post_message(
+                        Message(
+                            sender=sender,
+                            recipient="all",
+                            msg_type=MessageType.REQUEST_SUPPORT if token % 2 == 1 else MessageType.ENEMY_DETECTED,
+                            priority=min(5, max(1, token)),
+                            step=self.state.step_count,
+                            payload={"token": token},
+                        )
+                    )
 
         # 1. Update Cooldowns & Regen
         for u in list(self.state.friendly_units.values()) + list(self.state.enemy_units.values()):
             if u.cooldown_timer > 0:
                 u.cooldown_timer -= 1
         for node in self.state.resource_nodes:
-            node.amount = min(node.max_amount, node.amount + node.regen_rate)
+            if node.amount < node.max_amount:
+                node.amount = min(node.max_amount, node.amount + node.regen_rate)
 
         # 2. Execute Friendly Actions
-        for agent_id, action_idx in actions.items():
+        for agent_id, action_idx in parsed_actions.items():
             if agent_id in self.state.friendly_units:
                 unit = self.state.friendly_units[agent_id]
                 if unit.is_alive:
                     unit.current_action = action_idx
                     self._apply_unit_action(unit, action_idx)
 
-        # 3. Autonomous Communication Layer (triggers messages based on dynamic events)
-        self._process_autonomous_communication()
+        # 3. Dynamic Events
+        self._process_dynamic_events(step_events)
 
         # 4. Execute Opponent Strategy AI
         self._execute_opponent_behavior()
@@ -217,31 +366,32 @@ class StrategyGameEnv:
         harvest_val = self._resolve_harvesting()
         step_events["resources_harvested"] = harvest_val
 
-        # 7. Decay Coordinator transient alerts
-        self.coordinator.step_decay()
-
-        # 8. Check Game Over
+        # 7. Check Game Over
         is_over = self.state.is_game_over()
 
-        # 9. Compute Rewards
+        # 8. Compute Rewards
         rewards = self.reward_calculator.compute_rewards(self.state, self.state, step_events)
+
+        # Apply message cost
+        if self.msg_cost > 0:
+            for agent_id, token in new_messages.items():
+                if token > 0:  # non-silent
+                    rewards[agent_id] -= self.msg_cost
 
         terminations = {agent: self.state.terminated for agent in self.possible_agents}
         truncations = {agent: self.state.truncated for agent in self.possible_agents}
-
-        # Remove dead agents from active agents list if dead, but preserve terminal signal
-        for agent in self.possible_agents:
-            if not self.state.friendly_units[agent].is_alive and agent in self.agents:
-                pass  # Keep in list until episode ends for uniform rollout handling
 
         obs = {agent: self._get_observation(agent) for agent in self.possible_agents}
         infos = {
             agent: {
                 "step": self.state.step_count,
                 "winner": self.state.winner,
+                "win_type": self.state.win_type,
                 "friendly_base_hp": self.state.bases["friendly"].hp,
                 "enemy_base_hp": self.state.bases["enemy"].hp,
                 "friendly_resources": self.state.friendly_resources,
+                "enemy_strategy": self.state.enemy_strategy,
+                "storm_active": self.state.storm is not None and self.state.storm.active,
             }
             for agent in self.possible_agents
         }
@@ -264,209 +414,210 @@ class StrategyGameEnv:
             unit.move_towards(eb.x - 30.0, eb.y, self.map_w, self.map_h)
 
         elif action == ActionType.MOVE_RESOURCE:
-            # Move to closest non-empty resource node
-            active_nodes = [n for n in self.state.resource_nodes if n.amount > 10.0]
+            # Move to closest non-empty resource node that is visible
+            active_nodes = [n for n in self.state.resource_nodes
+                          if n.amount > 10.0 and unit.can_see(n.x, n.y)]
+            if not active_nodes:
+                # Fallback: move to any known node position
+                active_nodes = [n for n in self.state.resource_nodes if n.amount > 10.0]
             if active_nodes:
                 closest = min(active_nodes, key=lambda n: unit.distance_to(n.x, n.y))
                 unit.move_towards(closest.x, closest.y, self.map_w, self.map_h)
 
         elif action == ActionType.ATTACK_NEAREST_ENEMY:
-            alive_enemies = [e for e in self.state.enemy_units.values() if e.is_alive]
+            # Only attack enemies that are visible
+            alive_enemies = [e for e in self.state.enemy_units.values()
+                           if e.is_alive and unit.can_see(e.x, e.y)]
             if alive_enemies:
                 closest_enemy = min(alive_enemies, key=lambda e: unit.distance_to(e.x, e.y))
-                # Move within firing range
                 if unit.distance_to(closest_enemy.x, closest_enemy.y) > unit.attack_range * 0.8:
                     unit.move_towards(closest_enemy.x, closest_enemy.y, self.map_w, self.map_h)
 
         elif action == ActionType.DEFEND_PERIMETER:
-            # Patrol perimeter 120px in front of friendly base
             target_x = fb.x + 120.0
             target_y = fb.y + math.sin(self.state.step_count * 0.1) * 100.0
             unit.move_towards(target_x, target_y, self.map_w, self.map_h)
 
         elif action == ActionType.TACTICAL_RETREAT:
-            alive_enemies = [e for e in self.state.enemy_units.values() if e.is_alive]
+            alive_enemies = [e for e in self.state.enemy_units.values()
+                           if e.is_alive and unit.can_see(e.x, e.y)]
             if alive_enemies:
                 closest_enemy = min(alive_enemies, key=lambda e: unit.distance_to(e.x, e.y))
                 unit.move_away_from(closest_enemy.x, closest_enemy.y, self.map_w, self.map_h)
             else:
                 unit.move_towards(fb.x, fb.y, self.map_w, self.map_h)
 
-    def _process_autonomous_communication(self) -> None:
-        """
-        Symbolic tactical communication protocol triggered by real battlefield events.
-        """
-        if self.coordination_mode != "coordinated":
-            return
+    def _process_dynamic_events(self, step_events: Dict[str, Any]) -> None:
+        """Handle all dynamic events: storm, waves, strategy switch, supply drops, resource respawn."""
+        s = self.state
+        step = s.step_count
+        dyn = self.cfg.get("dynamic_events", {})
 
-        fb = self.state.bases["friendly"]
-        eb = self.state.bases["enemy"]
-        defense_unit = self.state.friendly_units.get("defense")
-        commander_unit = self.state.friendly_units.get("commander")
-        attack_unit = self.state.friendly_units.get("attack")
+        # --- Storm zone ---
+        if step == s.storm_spawn_step and s.storm is None:
+            storm_cfg = dyn.get("storm", {})
+            dur_range = storm_cfg.get("duration_range", [60, 150])
+            duration = int(self.rng.integers(dur_range[0], dur_range[1] + 1))
+            # Spawn from a random edge
+            edge = int(self.rng.integers(0, 4))  # 0=top, 1=right, 2=bottom, 3=left
+            radius = float(storm_cfg.get("radius", 60.0))
+            if edge == 0:
+                sx, sy = float(self.rng.uniform(100, self.map_w - 100)), radius
+            elif edge == 1:
+                sx, sy = self.map_w - radius, float(self.rng.uniform(100, self.map_h - 100))
+            elif edge == 2:
+                sx, sy = float(self.rng.uniform(100, self.map_w - 100)), self.map_h - radius
+            else:
+                sx, sy = radius, float(self.rng.uniform(100, self.map_h - 100))
 
-        alive_enemies = [e for e in self.state.enemy_units.values() if e.is_alive]
-        alive_friendlies = [f for f in self.state.friendly_units.values() if f.is_alive]
-
-        # 1. Threat Detection: Base perimeter (< 360px) or enemies on friendly half (x < 440.0)
-        threats_near_base = [e for e in alive_enemies if e.x < 440.0 or e.distance_to(fb.x, fb.y) < 360.0]
-        spotted_enemies = []
-        for f in alive_friendlies:
-            for e in alive_enemies:
-                if f.distance_to(e.x, e.y) <= f.vision_range:
-                    spotted_enemies.append(e)
-
-        if threats_near_base and defense_unit and defense_unit.is_alive:
-            nearest_threat = min(threats_near_base, key=lambda e: e.distance_to(fb.x, fb.y))
-            self.coordinator.post_message(
-                Message(
-                    sender="defense",
-                    recipient="all",
-                    msg_type=MessageType.ENEMY_DETECTED,
-                    priority=4,
-                    target_x=nearest_threat.x,
-                    target_y=nearest_threat.y,
-                    step=self.state.step_count,
-                )
-            )
-        elif spotted_enemies and not threats_near_base:
-            nearest_spotted = min(spotted_enemies, key=lambda e: min(f.distance_to(e.x, e.y) for f in alive_friendlies))
-            self.coordinator.post_message(
-                Message(
-                    sender="attack" if attack_unit and attack_unit.is_alive else "defense",
-                    recipient="all",
-                    msg_type=MessageType.ENEMY_DETECTED,
-                    priority=3,
-                    target_x=nearest_spotted.x,
-                    target_y=nearest_spotted.y,
-                    step=self.state.step_count,
-                )
+            drift_speed = float(storm_cfg.get("drift_speed", 1.5))
+            angle = float(self.rng.uniform(0, 2 * math.pi))
+            s.storm = StormZone(
+                x=sx, y=sy, radius=radius,
+                damage_per_step=float(storm_cfg.get("damage_per_step", 5.0)),
+                drift_dx=drift_speed * math.cos(angle),
+                drift_dy=drift_speed * math.sin(angle),
+                spawn_step=step,
+                end_step=step + duration,
             )
 
-        # 2. Emergency Support Requests (any damaged unit below 50% HP)
-        for unit in alive_friendlies:
-            if unit.hp < unit.max_hp * 0.5:
-                # Find surviving teammates
-                other_alive = [f.id for f in alive_friendlies if f.id != unit.id]
-                if other_alive:
-                    # Prioritize attack if alive, otherwise any other alive teammate
-                    target_recip = "attack" if "attack" in other_alive else other_alive[0]
-                    self.coordinator.post_message(
-                        Message(
-                            sender=unit.id,
-                            recipient=target_recip,
-                            msg_type=MessageType.REQUEST_SUPPORT,
-                            priority=5,
-                            target_x=unit.x,
-                            target_y=unit.y,
-                            step=self.state.step_count,
-                        )
-                    )
+        if s.storm and s.storm.active:
+            if step >= s.storm.end_step:
+                s.storm.active = False
+            else:
+                s.storm.advance(self.map_w, self.map_h)
+                # Damage all units inside storm
+                for u in list(s.friendly_units.values()) + list(s.enemy_units.values()):
+                    if u.is_alive and s.storm.contains(u.x, u.y):
+                        u.hp -= s.storm.damage_per_step
+                        if u.team == "friendly":
+                            step_events["friendly_unit_damage"] += s.storm.damage_per_step
+                        else:
+                            step_events["enemy_unit_damage"] += s.storm.damage_per_step
+                        if u.hp <= 0:
+                            u.is_alive = False
+                            if u.team == "friendly":
+                                step_events["friendly_units_lost"] += 1
+                            else:
+                                step_events["enemy_units_killed"] += 1
 
-        # 3. Strategic Directives with Tactical Command Succession
-        # If Commander is fallen, command passes to surviving senior unit (Defense -> Attack)
-        leader = None
-        for role in ["commander", "defense", "attack"]:
-            u = self.state.friendly_units.get(role)
-            if u and u.is_alive:
-                leader = u
-                break
+        # --- Enemy reinforcement wave ---
+        if step == s.enemy_wave_step:
+            wave_cfg = dyn.get("enemy_wave", {})
+            num_range = wave_cfg.get("num_units_range", [1, 2])
+            num_new = int(self.rng.integers(num_range[0], num_range[1] + 1))
+            flanks = wave_cfg.get("flank_options", ["top", "middle", "bottom"])
+            flank = flanks[int(self.rng.integers(0, len(flanks)))]
 
-        if leader:
-            # Check if any friendly units are currently engaged in active combat/skirmish
-            active_skirmish = any(
-                any(f.distance_to(e.x, e.y) <= max(f.attack_range, e.attack_range) + 20.0 for e in alive_enemies)
-                for f in alive_friendlies
+            e_defaults = self.cfg["enemy_squad"]["unit_defaults"]
+            rand_cfg = self.cfg.get("randomization", {})
+            stat_range = rand_cfg.get("stat_multiplier_range", [0.85, 1.15])
+
+            for j in range(num_new):
+                eid = f"enemy_wave_{j+1}"
+                stat_mult = float(self.rng.uniform(stat_range[0], stat_range[1]))
+                if flank == "top":
+                    ey = float(self.rng.uniform(30, 150))
+                elif flank == "bottom":
+                    ey = float(self.rng.uniform(self.map_h - 150, self.map_h - 30))
+                else:
+                    ey = float(self.rng.uniform(200, 400))
+                ex = float(self.rng.uniform(self.map_w - 80, self.map_w - 20))
+
+                s.enemy_units[eid] = Unit(
+                    id=eid, team="enemy", role="enemy_grunt", name=f"Wave_{j+1}",
+                    x=ex, y=ey,
+                    hp=float(e_defaults["hp"]) * stat_mult,
+                    max_hp=float(e_defaults["max_hp"]) * stat_mult,
+                    speed=float(e_defaults["speed"]) * stat_mult,
+                    damage=float(e_defaults["damage"]) * stat_mult,
+                    attack_range=float(e_defaults["attack_range"]),
+                    vision_range=float(e_defaults["vision_range"]),
+                    cooldown=int(e_defaults["cooldown"]),
+                )
+
+        # --- Enemy strategy switch ---
+        if step == s.enemy_strategy_switch_step:
+            switch_cfg = dyn.get("enemy_strategy_switch", {})
+            strategies = switch_cfg.get("strategies", ["aggressive", "defensive", "resource_focused"])
+            available = [st for st in strategies if st != s.enemy_strategy]
+            if available:
+                s.enemy_strategy = available[int(self.rng.integers(0, len(available)))]
+
+        # --- Supply drop ---
+        if step == s.supply_drop_step and s.supply_drop is None:
+            sd_cfg = dyn.get("supply_drop", {})
+            sx = float(self.rng.uniform(100, self.map_w - 100))
+            sy = float(self.rng.uniform(80, self.map_h - 80))
+            s.supply_drop = SupplyDrop(
+                x=sx, y=sy,
+                heal_fraction=float(sd_cfg.get("heal_amount", 0.5)),
+                spawn_step=step,
             )
 
-            if threats_near_base:
-                self.coordinator.post_message(
-                    Message(
-                        sender=leader.id,
-                        recipient="all",
-                        msg_type=MessageType.DEFEND_BASE,
-                        priority=5,
-                        target_x=fb.x,
-                        target_y=fb.y,
-                        step=self.state.step_count,
-                    )
-                )
-            elif eb.hp < 600.0 or (len(alive_enemies) <= 1 and not threats_near_base and not active_skirmish):
-                # Offensive opening: siege enemy base only if no active base threats or ongoing firefight
-                self.coordinator.post_message(
-                    Message(
-                        sender=leader.id,
-                        recipient="attack" if attack_unit and attack_unit.is_alive else "all",
-                        msg_type=MessageType.ATTACK_TARGET,
-                        priority=4,
-                        target_x=eb.x,
-                        target_y=eb.y,
-                        step=self.state.step_count,
-                    )
-                )
-            elif self.state.friendly_resources < 50.0 and any(n.amount > 20.0 for n in self.state.resource_nodes) and not active_skirmish:
-                # Economic prompt
-                self.coordinator.post_message(
-                    Message(
-                        sender=leader.id,
-                        recipient="all",
-                        msg_type=MessageType.RESOURCE_LOW,
-                        priority=3,
-                        step=self.state.step_count,
-                    )
-                )
-            elif not threats_near_base and not active_skirmish and self.coordinator.threat_level > 0:
-                self.coordinator.post_message(
-                    Message(
-                        sender=leader.id,
-                        recipient="all",
-                        msg_type=MessageType.THREAT_REDUCED,
-                        priority=2,
-                        step=self.state.step_count,
-                    )
-                )
-                self.coordinator.post_message(
-                    Message(
-                        sender=leader.id,
-                        recipient="attack" if attack_unit and attack_unit.is_alive else "all",
-                        msg_type=MessageType.RESUME_OFFENSE,
-                        priority=3,
-                        target_x=eb.x,
-                        target_y=eb.y,
-                        step=self.state.step_count,
-                    )
-                )
+        # Check supply drop pickup (visible units only)
+        if s.supply_drop and not s.supply_drop.collected:
+            sd = s.supply_drop
+            for u in s.friendly_units.values():
+                if u.is_alive and u.distance_to(sd.x, sd.y) <= sd.pickup_range:
+                    # Heal all friendly units
+                    for fu in s.friendly_units.values():
+                        if fu.is_alive:
+                            fu.hp = min(fu.max_hp, fu.hp + fu.max_hp * sd.heal_fraction)
+                    sd.collected = True
+                    break
+
+        # --- Resource node respawn ---
+        if step == s.next_resource_spawn_step:
+            res_cfg = dyn.get("resource_respawn", {})
+            max_nodes = int(res_cfg.get("max_total_nodes", 5))
+            active_nodes = [n for n in s.resource_nodes if n.amount > 0]
+            if len(active_nodes) < max_nodes:
+                rand_cfg_r = self.cfg.get("randomization", {})
+                res_amount_range = rand_cfg_r.get("resource_amount_range", [300, 700])
+                res_regen_range = rand_cfg_r.get("resource_regen_range", [0.5, 2.0])
+                nx = float(self.rng.uniform(150, self.map_w - 150))
+                ny = float(self.rng.uniform(80, self.map_h - 80))
+                amt = float(self.rng.uniform(res_amount_range[0], res_amount_range[1]))
+                regen = float(self.rng.uniform(res_regen_range[0], res_regen_range[1]))
+                s.resource_nodes.append(ResourceNode(
+                    id=self._next_node_id, x=nx, y=ny,
+                    amount=amt, max_amount=amt, regen_rate=regen,
+                ))
+                self._next_node_id += 1
+            # Schedule next respawn
+            interval_range = res_cfg.get("interval_range", [50, 120])
+            s.next_resource_spawn_step = step + int(self.rng.integers(
+                interval_range[0], interval_range[1] + 1))
 
     def _execute_opponent_behavior(self) -> None:
-        """Configurable Opponent Strategy AI."""
+        """Configurable Opponent Strategy AI (uses current strategy from state, supports mid-game switch)."""
         alive_enemies = [e for e in self.state.enemy_units.values() if e.is_alive]
         alive_friendlies = [f for f in self.state.friendly_units.values() if f.is_alive]
         fb = self.state.bases["friendly"]
         eb = self.state.bases["enemy"]
+        strategy = self.state.enemy_strategy
 
         for enemy in alive_enemies:
-            if self.opponent_strategy == "aggressive":
-                # Rush friendly base, engage anything on the way
+            if strategy == "aggressive":
                 in_range_friendlies = [f for f in alive_friendlies if enemy.distance_to(f.x, f.y) <= enemy.attack_range]
                 if in_range_friendlies:
                     pass  # Stay and attack
                 else:
                     enemy.move_towards(fb.x + 30.0, fb.y, self.map_w, self.map_h)
 
-            elif self.opponent_strategy == "defensive":
-                # Guard perimeter of enemy base (x > 580)
+            elif strategy == "defensive":
                 intruders = [f for f in alive_friendlies if f.x > 500.0]
                 if intruders:
                     closest_intruder = min(intruders, key=lambda f: enemy.distance_to(f.x, f.y))
                     enemy.move_towards(closest_intruder.x, closest_intruder.y, self.map_w, self.map_h)
                 else:
-                    # Patrol defensive circle around enemy base
                     patrol_x = eb.x - 120.0
-                    patrol_y = eb.y + math.sin(self.state.step_count * 0.08 + int(enemy.id.split('_')[-1])) * 80.0
+                    enemy_idx = int(enemy.id.split('_')[-1]) if '_' in enemy.id else 0
+                    patrol_y = eb.y + math.sin(self.state.step_count * 0.08 + enemy_idx) * 80.0
                     enemy.move_towards(patrol_x, patrol_y, self.map_w, self.map_h)
 
-            elif self.opponent_strategy == "resource_focused":
-                # Harvest resource first until stockpile >= 100, then advance
+            elif strategy == "resource_focused":
                 if self.state.enemy_resources < 100.0:
                     active_nodes = [n for n in self.state.resource_nodes if n.amount > 10.0]
                     if active_nodes:
@@ -475,7 +626,6 @@ class StrategyGameEnv:
                     else:
                         enemy.move_towards(fb.x, fb.y, self.map_w, self.map_h)
                 else:
-                    # Unleash coordinated attack once enriched
                     enemy.move_towards(fb.x, fb.y, self.map_w, self.map_h)
 
     def _resolve_combat(self) -> Dict[str, float]:
@@ -498,7 +648,6 @@ class StrategyGameEnv:
         # Friendly Attacks
         for f in alive_friendlies:
             if f.cooldown_timer == 0:
-                # Prioritize enemy units in range
                 targets = [e for e in alive_enemies if f.distance_to(e.x, e.y) <= f.attack_range]
                 if targets:
                     target = min(targets, key=lambda e: e.hp)
@@ -507,7 +656,6 @@ class StrategyGameEnv:
                     f.damage_dealt += f.damage
                     events["enemy_unit_damage"] += f.damage
 
-                    # Check for coordinated strike (attack + defense targeting same enemy or adjacent)
                     other_friendlies = [other for other in alive_friendlies if other.id != f.id]
                     if any(other.distance_to(target.x, target.y) <= other.attack_range for other in other_friendlies):
                         events["coordinated_strikes"] += 1
@@ -517,7 +665,6 @@ class StrategyGameEnv:
                         f.kills += 1
                         events["enemy_units_killed"] += 1
 
-                # If no units in range, can damage enemy base if in range
                 elif f.distance_to(eb.x, eb.y) <= f.attack_range + 30.0:
                     eb.hp = max(0.0, eb.hp - f.damage)
                     f.cooldown_timer = f.cooldown
@@ -556,7 +703,6 @@ class StrategyGameEnv:
             if node.amount <= 0.0:
                 continue
 
-            # Friendly harvesters
             for f in self.state.friendly_units.values():
                 if f.is_alive and f.distance_to(node.x, node.y) <= gather_range:
                     take = min(node.amount, gather_rate)
@@ -564,7 +710,6 @@ class StrategyGameEnv:
                     self.state.friendly_resources += take
                     harvested += take
 
-            # Enemy harvesters
             for e in self.state.enemy_units.values():
                 if e.is_alive and e.distance_to(node.x, node.y) <= gather_range:
                     take = min(node.amount, gather_rate)
@@ -575,7 +720,19 @@ class StrategyGameEnv:
 
     def _get_observation(self, agent_id: str) -> np.ndarray:
         """
-        Construct the normalized 49-dimensional observation vector for the agent.
+        Construct the partially-observable observation vector for the agent.
+
+        Structure:
+          [0:5]   Self status (x, y, hp, cooldown, alive)
+          [5:8]   Friendly base (x, y, hp_frac)
+          [8:11]  Enemy base (x, y, hp_frac) - only if visible
+          [11:19] Teammates (2 * 4 values: rel_x, rel_y, hp_frac, alive)
+          [19:31] Visible enemy units (3 * 4 values, zeroed if not visible)
+          [31:40] Visible resource nodes (3 * 3 values, zeroed if not visible)
+          [40:43] Global state (friendly_resources_frac, enemy_resources_frac, time_frac)
+          [43:46] Storm info (rel_x, rel_y, active_flag) if visible
+          [46:46+2*msg_tokens] Received messages (one-hot)
+          [46+2*msg_tokens:] Role ID one-hot (3 dims)
         """
         assert self.state is not None
         obs = np.zeros(self.obs_dim, dtype=np.float32)
@@ -583,7 +740,11 @@ class StrategyGameEnv:
         fb = self.state.bases["friendly"]
         eb = self.state.bases["enemy"]
 
+        ref_x = unit.x if (unit and unit.is_alive) else fb.x
+        ref_y = unit.y if (unit and unit.is_alive) else fb.y
+
         idx = 0
+
         # 1. Self status (5 values)
         if unit and unit.is_alive:
             obs[idx:idx+5] = [
@@ -595,7 +756,7 @@ class StrategyGameEnv:
             ]
         idx += 5
 
-        # 2. Friendly base status (3 values)
+        # 2. Friendly base status (3 values) — always visible (Commander has base telemetry)
         obs[idx:idx+3] = [
             (fb.x / self.map_w) * 2.0 - 1.0,
             (fb.y / self.map_h) * 2.0 - 1.0,
@@ -603,38 +764,51 @@ class StrategyGameEnv:
         ]
         idx += 3
 
-        # 3. Enemy base status (3 values)
-        obs[idx:idx+3] = [
-            (eb.x / self.map_w) * 2.0 - 1.0,
-            (eb.y / self.map_h) * 2.0 - 1.0,
-            eb.hp / eb.max_hp,
-        ]
+        # 3. Enemy base status (3 values) — only if visible to this unit
+        if unit and unit.is_alive and unit.can_see(eb.x, eb.y):
+            obs[idx:idx+3] = [
+                (eb.x / self.map_w) * 2.0 - 1.0,
+                (eb.y / self.map_h) * 2.0 - 1.0,
+                eb.hp / eb.max_hp,
+            ]
+        # else: stays zeros (unknown)
         idx += 3
 
         # 4. Teammates status (2 other agents * 4 values = 8 values)
+        # Commander special: always sees teammate HP. Others: only if in vision.
         other_agents = [a for a in self.possible_agents if a != agent_id]
-        ref_x = unit.x if unit else fb.x
-        ref_y = unit.y if unit else fb.y
-
         for other_id in other_agents:
             other = self.state.friendly_units.get(other_id)
             if other and other.is_alive:
-                rel_x = (other.x - ref_x) / (self.map_w / 2.0)
-                rel_y = (other.y - ref_y) / (self.map_h / 2.0)
-                obs[idx:idx+4] = [
-                    np.clip(rel_x, -1.0, 1.0),
-                    np.clip(rel_y, -1.0, 1.0),
-                    other.hp / other.max_hp,
-                    1.0,
-                ]
-            else:
-                obs[idx:idx+4] = [0.0, 0.0, 0.0, 0.0]
+                can_observe = (
+                    agent_id == "commander"  # Commander sees all teammate HP
+                    or (unit and unit.is_alive and unit.can_see(other.x, other.y))
+                )
+                if can_observe:
+                    rel_x = (other.x - ref_x) / (self.map_w / 2.0)
+                    rel_y = (other.y - ref_y) / (self.map_h / 2.0)
+                    obs[idx:idx+4] = [
+                        np.clip(rel_x, -1.0, 1.0),
+                        np.clip(rel_y, -1.0, 1.0),
+                        other.hp / other.max_hp,
+                        1.0,
+                    ]
+                elif agent_id == "commander":
+                    # Commander sees HP but not accurate position (only rough direction)
+                    obs[idx:idx+4] = [0.0, 0.0, other.hp / other.max_hp, 1.0]
             idx += 4
 
         # 5. Visible enemy units (up to 3 units * 4 values = 12 values)
+        # Only enemies within vision radius
         enemies = sorted(self.state.enemy_units.values(), key=lambda e: e.id)
-        for e in enemies[:3]:
-            if e.is_alive:
+        visible_enemies = []
+        if unit and unit.is_alive:
+            visible_enemies = [e for e in enemies if e.is_alive and unit.can_see(e.x, e.y)]
+        # Sort by distance, take closest 3
+        visible_enemies.sort(key=lambda e: unit.distance_to(e.x, e.y) if unit else 999)
+        for i in range(3):
+            if i < len(visible_enemies):
+                e = visible_enemies[i]
                 rel_x = (e.x - ref_x) / (self.map_w / 2.0)
                 rel_y = (e.y - ref_y) / (self.map_h / 2.0)
                 obs[idx:idx+4] = [
@@ -643,19 +817,24 @@ class StrategyGameEnv:
                     e.hp / e.max_hp,
                     1.0,
                 ]
-            else:
-                obs[idx:idx+4] = [0.0, 0.0, 0.0, 0.0]
             idx += 4
 
-        # 6. Resource nodes status (3 nodes * 3 values = 9 values)
-        for node in self.state.resource_nodes[:3]:
-            rel_x = (node.x - ref_x) / (self.map_w / 2.0)
-            rel_y = (node.y - ref_y) / (self.map_h / 2.0)
-            obs[idx:idx+3] = [
-                np.clip(rel_x, -1.0, 1.0),
-                np.clip(rel_y, -1.0, 1.0),
-                node.amount / node.max_amount,
-            ]
+        # 6. Visible resource nodes (up to 3 nodes * 3 values = 9 values)
+        visible_nodes = []
+        if unit and unit.is_alive:
+            visible_nodes = [n for n in self.state.resource_nodes
+                           if n.amount > 0 and unit.can_see(n.x, n.y)]
+        visible_nodes.sort(key=lambda n: unit.distance_to(n.x, n.y) if unit else 999)
+        for i in range(3):
+            if i < len(visible_nodes):
+                n = visible_nodes[i]
+                rel_x = (n.x - ref_x) / (self.map_w / 2.0)
+                rel_y = (n.y - ref_y) / (self.map_h / 2.0)
+                obs[idx:idx+3] = [
+                    np.clip(rel_x, -1.0, 1.0),
+                    np.clip(rel_y, -1.0, 1.0),
+                    n.amount / n.max_amount,
+                ]
             idx += 3
 
         # 7. Global State (3 values)
@@ -666,12 +845,30 @@ class StrategyGameEnv:
         ]
         idx += 3
 
-        # 8. Communication Features (6 values)
-        comm_feats = self.coordinator.get_communication_features(agent_id, self.state)
-        obs[idx:idx+6] = comm_feats
-        idx += 6
+        # 8. Storm info (3 values) — only if visible to this unit
+        storm = self.state.storm
+        if storm and storm.active and unit and unit.is_alive and unit.can_see(storm.x, storm.y):
+            rel_sx = (storm.x - ref_x) / (self.map_w / 2.0)
+            rel_sy = (storm.y - ref_y) / (self.map_h / 2.0)
+            obs[idx:idx+3] = [
+                np.clip(rel_sx, -1.0, 1.0),
+                np.clip(rel_sy, -1.0, 1.0),
+                1.0,  # storm active flag
+            ]
+        idx += 3
 
-        # 9. Role One-Hot Badge (3 values: commander=[1,0,0], defense=[0,1,0], attack=[0,0,1])
+        # 9. Received messages (2 teammates * msg_tokens one-hot)
+        if self.enable_communication and self.coordination_mode == "coordinated":
+            other_ids = [a for a in self.possible_agents if a != agent_id]
+            for i_other, other_id in enumerate(other_ids):
+                token = self._delivered_messages.get(agent_id, {}).get(other_id, 0)
+                if 0 <= token < self.msg_tokens:
+                    obs[idx + token] = 1.0
+                idx += self.msg_tokens
+        else:
+            idx += self.msg_obs_dim  # zeros
+
+        # 10. Role One-Hot ID (3 values if enabled)
         if self.include_role_id:
             role_map = {"commander": 0, "defense": 1, "attack": 2}
             role_offset = role_map.get(agent_id, 0)

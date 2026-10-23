@@ -1,7 +1,6 @@
-"""STRATOS AI - Multi-Agent Strategy Simulation Environment."""
+"""STRATOS AI Environment Module (v2 — Dynamic & Stochastic)."""
 
 from environment.strategy_game import StrategyGameEnv
-from environment.game_state import GameState, Unit, Base, ResourceNode
-from environment.actions import ActionType
-
-__all__ = ["StrategyGameEnv", "GameState", "Unit", "Base", "ResourceNode", "ActionType"]
+from environment.game_state import GameState, Unit, Base, ResourceNode, StormZone, SupplyDrop
+from environment.actions import ActionType, NUM_ACTIONS, ACTION_NAMES
+from environment.rewards import RewardCalculator
