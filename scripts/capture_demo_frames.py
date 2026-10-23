@@ -33,9 +33,16 @@ def capture_demo(output_dir: str, checkpoint_path: str, mode: str = "coordinated
         agent_obs = np.array([obs[agent] for agent in env.possible_agents])
         obs_t = torch.as_tensor(agent_obs, dtype=torch.float32)
         with torch.no_grad():
-            action_t, _, _, _ = policy.get_action_and_value(obs_t, deterministic=True)
+            if getattr(policy, "has_comm_head", False):
+                action_t, msg_t, _, _, _, _ = policy.get_actions_and_values(obs_t, deterministic=True)
+                actions = {
+                    agent: {"action": int(action_t[i].item()), "message": int(msg_t[i].item())}
+                    for i, agent in enumerate(env.possible_agents)
+                }
+            else:
+                action_t, _, _, _ = policy.get_action_and_value(obs_t, deterministic=True)
+                actions = {agent: int(action_t[i].item()) for i, agent in enumerate(env.possible_agents)}
 
-        actions = {agent: int(action_t[i].item()) for i, agent in enumerate(env.possible_agents)}
         obs, rewards, terminations, truncations, infos = env.step(actions)
 
         renderer.render_frame()
@@ -55,6 +62,8 @@ def capture_demo(output_dir: str, checkpoint_path: str, mode: str = "coordinated
     return captured_files
 
 if __name__ == "__main__":
-    artifact_dir = r"C:\Users\Vishal\.gemini\antigravity-ide\brain\1f1a2cc3-8fda-402f-85f7-8eb3df1706a6"
-    ckpt = "artifacts/checkpoints/stratos_policy_candidate_fix_5000step.pt"
-    capture_demo(artifact_dir, ckpt, mode="coordinated", opponent="aggressive")
+    out_dir = "artifacts/demo_frames"
+    comm_ckpt = "artifacts/checkpoints/stratos_policy_comm_seed42.pt"
+    latest_ckpt = "artifacts/checkpoints/stratos_policy_latest.pt"
+    target_ckpt = comm_ckpt if Path(comm_ckpt).exists() else latest_ckpt
+    capture_demo(out_dir, target_ckpt, mode="coordinated", opponent="aggressive")

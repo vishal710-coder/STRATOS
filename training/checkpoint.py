@@ -29,6 +29,8 @@ def save_checkpoint(
         "config": config or {},
         "obs_dim": policy.obs_dim,
         "act_dim": policy.act_dim,
+        "msg_dim": getattr(policy, "msg_dim", 0),
+        "has_comm_head": getattr(policy, "has_comm_head", False),
     }
 
     torch.save(checkpoint_data, target_path)
@@ -49,9 +51,19 @@ def load_checkpoint(
     checkpoint = torch.load(target_path, map_location=device)
 
     if policy is None:
-        obs_dim = checkpoint.get("obs_dim", 49)
+        obs_dim = checkpoint.get("obs_dim", 67)
         act_dim = checkpoint.get("act_dim", 7)
-        policy = ActorCriticPolicy(obs_dim=obs_dim, act_dim=act_dim).to(device)
+        has_comm = checkpoint.get(
+            "has_comm_head",
+            "comm_actor.weight" in checkpoint.get("model_state_dict", {})
+        )
+        msg_dim = checkpoint.get("msg_dim", 9 if has_comm else 0)
+        policy = ActorCriticPolicy(
+            obs_dim=obs_dim,
+            act_dim=act_dim,
+            msg_dim=msg_dim,
+            has_comm_head=has_comm,
+        ).to(device)
 
     # Check for dimension mismatch on the input layer (e.g., warm-starting 52-dim role policy from 49-dim base)
     ckpt_state = checkpoint["model_state_dict"]
@@ -67,7 +79,7 @@ def load_checkpoint(
             adapted_w[:, :min_cols] = ckpt_w[:, :min_cols]
             ckpt_state["network.0.weight"] = adapted_w
 
-    policy.load_state_dict(ckpt_state)
+    policy.load_state_dict(ckpt_state, strict=False)
     policy.eval()
 
     if not is_dim_expansion and optimizer is not None and checkpoint.get("optimizer_state_dict") is not None:
