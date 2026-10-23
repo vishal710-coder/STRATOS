@@ -80,7 +80,8 @@ def test_train_pipeline_resumption():
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_p = Path(tmp_dir)
         init_ckpt = tmp_p / "init.pt"
-        policy = ActorCriticPolicy(obs_dim=49, act_dim=7)
+        from environment.actions import NUM_ACTIONS
+        policy = ActorCriticPolicy(obs_dim=73, act_dim=NUM_ACTIONS)
         save_checkpoint(str(init_ckpt), policy, total_steps=100, episode=2)
 
         out_ckpt = tmp_p / "resumed.pt"
@@ -103,3 +104,64 @@ def test_train_pipeline_resumption():
         assert out_ckpt.exists()
         reloaded_policy, meta = load_checkpoint(str(out_ckpt))
         assert meta["total_steps"] >= 130
+
+
+def test_training_aids():
+    """Verify message entropy bonus, auxiliary fact prediction loss, and message cost."""
+    device = torch.device("cpu")
+    policy = ActorCriticPolicy(
+        obs_dim=73,
+        act_dim=9,
+        msg_dim=9,
+        has_comm_head=True,
+        has_aux_head=True,
+    )
+    trainer = PPOTrainer(
+        policy=policy,
+        entropy_coef=0.01,
+        comm_entropy_coef=0.03,
+        aux_loss_coef=0.1,
+        device="cpu",
+    )
+    buffer = MultiAgentRolloutBuffer(buffer_size=10, num_agents=3, obs_dim=73, device=device)
+
+    for _ in range(10):
+        obs = torch.randn(3, 73)
+        act = torch.zeros(3, dtype=torch.long)
+        msg = torch.ones(3, dtype=torch.long)
+        logp = torch.zeros(3)
+        rew = torch.ones(3)
+        done = torch.zeros(3)
+        val = torch.ones(3) * 0.5
+        fact = torch.tensor([[1, 2], [1, 2], [1, 2]], dtype=torch.long)
+        buffer.insert(obs, act, logp, rew, done, val, message=msg, hidden_fact=fact)
+
+    buffer.compute_returns_and_advantages(torch.ones(3) * 0.5, torch.zeros(3))
+    metrics = trainer.update(buffer, batch_size=15, ppo_epochs=2)
+
+    assert "comm_entropy" in metrics
+    assert "aux_loss" in metrics
+    assert metrics["comm_entropy"] >= 0.0
+    assert metrics["aux_loss"] > 0.0
+
+    # Verify per-message cost in StrategyGameEnv
+    from environment.strategy_game import StrategyGameEnv
+    env = StrategyGameEnv(message_cost=0.05)
+    env.reset(seed=42)
+    # Step with non-silent message (token 1)
+    _, r_msg, _, _, _ = env.step({
+        "commander": {"action": 0, "message": 1},
+        "defense": {"action": 0, "message": 0},
+        "attack": {"action": 0, "message": 0},
+    })
+    env.reset(seed=42)
+    # Step with silent message (token 0)
+    _, r_silent, _, _, _ = env.step({
+        "commander": {"action": 0, "message": 0},
+        "defense": {"action": 0, "message": 0},
+        "attack": {"action": 0, "message": 0},
+    })
+    # Commander should have received a 0.05 penalty for transmitting message token 1
+    assert r_msg["commander"] < r_silent["commander"]
+    assert pytest.approx(r_silent["commander"] - r_msg["commander"], abs=1e-4) == 0.05
+

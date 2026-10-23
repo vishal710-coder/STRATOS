@@ -13,6 +13,8 @@ hyperparameters:
   clip_eps: 0.2
   value_loss_coef: 0.5
   entropy_coef: 0.01
+  comm_entropy_coef: 0.01
+  aux_pred_loss_coef: 0.0
   max_grad_norm: 0.5
   ppo_epochs: 4
   batch_size: 64
@@ -24,6 +26,7 @@ training:
   log_interval_episodes: 5
   seed: 42
   device: "auto" # Will detect cuda if available, else cpu
+  message_cost: 0.0
 
 paths:
   checkpoints_dir: "artifacts/checkpoints"

@@ -1,191 +1,174 @@
-# STRATOS AI — Strategic Team Reasoning and Adaptive Tactical Operations System
+# STRATOS AI — Strategic Team Reasoning and Adaptive Tactical Operations System (v2)
 
 > **Tagline**: Collective Intelligence. Coordinated Execution.  
 > **Team**: NEXUS AI  
-> **Project Category**: Multi-Agent Artificial Intelligence · Reinforcement Learning · Cooperative Decision-Making · Simulation & Research  
+> **Project Category**: Multi-Agent Reinforcement Learning (MARL) · Learned Communication · Stochastic Simulation & Research  
+> **Release Tag**: `expo-v1`  
+> **License**: MIT License  
 
 ---
 
 ## 1. Project Overview & Vision
 
-**STRATOS AI** is a real-time multi-agent strategy simulation and research testbed where three specialized artificial intelligence agents cooperate to defend their base, manage resources, engage hostile forces, and adapt to changing enemy tactics.
+**STRATOS AI** is an advanced multi-agent reinforcement learning simulation and research testbed where three specialized artificial intelligence agents (**Commander**, **Defense**, **Attack**) learn to coordinate in a dynamic, stochastic, partially-observable battlefield.
 
-The system combines:
-1. **PettingZoo-Compatible Strategy Simulation**: Top-down real-time battlefield with bases, units, dynamic resource depots, combat cooldowns, and customizable opponent strategies.
-2. **Reinforcement Learning Decision-Making**: Deep Actor-Critic policy trained via Proximal Policy Optimization (PPO) with Generalized Advantage Estimation (GAE).
-3. **Tactical Communication Bus**: Structured symbolic messaging layer (`ENEMY_DETECTED`, `REQUEST_SUPPORT`, `DEFEND_BASE`, `RESUME_OFFENSE`) directly feeding into agent decision channels.
-4. **Interactive Battlefield Visualizer**: High-performance Pygame display with tactical telemetry, futuristic HUD, and live communication ticker.
-5. **Research Analytics Dashboard**: Interactive Streamlit application displaying learning curves, win rates, and comparative benchmarking.
-
-### Key Documentation & Submission Materials:
-- 📄 **[Full Academic Research Report](docs/FINAL_PROJECT_REPORT.md)**: In-depth report with mathematical formalisms, 150-episode multi-seed proofs, and architectural details.
-- 🎙️ **[Presentation Script & Slide Guide](docs/PRESENTATION_SCRIPT.md)**: 7-to-10 minute presentation script, slide-by-slide structure, and evaluator Q&A responses.
-- 📋 **[Audited Project Status Log](PROJECT_STATUS.md)**: Comprehensive engineering and multi-seed audit log.
-
----
-
-## 2. Problem Statement & Core Research Question
-
-In complex strategic environments, independent decision-makers often suffer from coordination breakdown, redundant efforts, and tragic friendly fire or defensive collapse.
-
-### Core Research Question:
-> **"Does communication between specialized AI agents improve their coordination and performance against different opponent strategies compared with agents that operate independently?"**
-
-STRATOS AI implements a rigorous experimental framework to benchmark **Coordinated Agents** (with communication channels) against an **Independent Baseline** (without inter-agent communication) under identical environmental seeds and opponent strategies.
+### STRATOS v2 Core Features:
+1. **Dynamic Stochastic Environment**:
+   - Seeded environment variation (`np.random.default_rng(seed)`) over unit spawns, terrain offsets, and event timings.
+   - Dynamic moving **Hazard Storms** dealing periodic environmental damage (5.0 HP/step).
+   - Mid-match **Supply Drop** crates providing critical health and resource caches.
+   - Dynamic enemy wave reinforcements and adaptive in-match opponent strategy switches.
+2. **Strict Partial Observability**:
+   - Role-differentiated fog-of-war vision radii (Commander: 150px, Defense: 130px, Attack: 200px) preventing global omniscience.
+3. **Learned Discrete Communication**:
+   - Dual-head neural policies outputting physical actions ($A \in \{0..6\}$) and discrete communication tokens ($M \in \{0..8\}$: 1 silent + 8 learned symbols).
+   - Realistic 1-step message transmission delay buffer.
+4. **Multi-Agent PPO (MAPPO)**:
+   - Centralized Training with Decentralized Execution (CTDE) utilizing a 114-dimensional centralized critic and 67-dimensional actor observations.
+5. **Audited & Honest Statistical Evaluation**:
+   - Timeouts strictly adjudicate as neutral draws (`win_type="timeout_draw"`); resource hoarding exploit eliminated.
+   - Tested across **3,900 total evaluation episodes** (2,400 main evaluation episodes across 100 held-out seeds `5000`..`5099` plus 1,500 ablation episodes).
+   - Hierarchical **cluster bootstrap inference** treating the training seed as the unit of replication ($N=3$).
 
 ---
 
-## 3. System Architecture
+## 2. System Architecture
 
 ```mermaid
 graph TD
-    subgraph Battlefield ["PettingZoo Strategy Simulation"]
-        State[GameState: Units, Bases, Crystals]
-        Engine[Combat & Harvesting Mechanics]
+    subgraph Battlefield ["PettingZoo Strategy Simulation (v2)"]
+        State[GameState: Bases, Units, Crystals, Storms, Supply Drops]
+        Vision[Partial Observability: Role Vision Radii]
+        CommBuffer[1-Step Delay Message Transmission Buffer]
     end
 
-    subgraph CommunicationBus ["Tactical Coordinator"]
-        Router[Message Bus & Inboxes]
-        Encoder[6-Channel Comm Feature Extractor]
+    subgraph Squad ["Specialized Friendly Squad"]
+        Commander[Commander: Vision 150px]
+        Defense[Defense: Vision 130px]
+        Attack[Attack: Vision 200px]
     end
 
-    subgraph FriendlyAgents ["Specialized Squad"]
-        Commander[Commander Agent: Strategic Priority]
-        Defense[Defense Agent: HQ Protection]
-        Attack[Attack Agent: Flanking & Siege]
+    subgraph MAPPO ["Dual-Head Policy & Centralized Critic"]
+        Obs[67-Dim Actor Observation: 46 Local + 18 Teammate Msg + 3 Role]
+        SharedBackbone[Shared MLP: Linear 256 -> Tanh -> Linear 128 -> Tanh]
+        ActionHead[Action Head: 7 Discrete Physical Actions]
+        CommHead[Comm Head: 9 Discrete Communication Tokens]
+        Critic[Centralized Critic: 114-Dim Global State -> V(s)]
     end
 
-    subgraph PPO ["Actor-Critic Policy Network"]
-        Obs[49-Dim Normalized Observation]
-        ActionHead[Categorical Distribution over 7 Actions]
-        CriticHead[State Value V(s) Estimator]
-    end
-
-    State --> Obs
-    Encoder --> Obs
-    Obs --> PPO
-    ActionHead --> Commander & Defense & Attack
-    Commander & Defense & Attack --> Router
-    Router --> Encoder
-    Commander & Defense & Attack --> Engine
+    Battlefield --> Vision
+    Vision --> Squad
+    Squad --> Obs
+    CommBuffer --> Obs
+    Obs --> SharedBackbone
+    SharedBackbone --> ActionHead
+    SharedBackbone --> CommHead
+    ActionHead --> Battlefield
+    CommHead --> CommBuffer
 ```
 
 ---
 
-## 4. Technologies Used
+## 3. Quickstart & CLI Commands
 
-- **Core & Numerics**: Python 3.11+, NumPy, PyTorch (CPU & GPU-ready)
-- **Environment Standard**: PettingZoo (Parallel API convention), Gymnasium
-- **Reinforcement Learning**: Proximal Policy Optimization (PPO), Generalized Advantage Estimation (GAE)
-- **Visualization**: Pygame
-- **Analytics & Dashboard**: Streamlit, Pandas, Matplotlib
-- **Engineering & Testing**: PyYAML, Pytest
-
----
-
-## 5. Installation & Setup
-
-### Prerequisites
-- Windows 10/11, Linux, or macOS
-- Python 3.10 to 3.12 (Python 3.11 recommended)
-
-### Quick Start
+### 1. Launch Interactive Battlefield Visualizer
+Run the Pygame visualizer with tactical telemetry, hazard storm auras, vision circles, and live floating message tokens (defaults to validated reference checkpoint `stratos_policy_comm_best.pt`):
 ```bash
-# Clone or enter repository directory
-cd e:/STRATOS
+python scripts/run_game.py --mode coordinated --opponent aggressive
+```
+- **Hotkeys**:
+  - `[C]` / `[M]`: Toggle inter-agent communication mode live (Coordinated $\leftrightarrow$ Independent).
+  - `[O]`: Cycle opponent strategy (`aggressive` $\to$ `defensive` $\to$ `resource_focused`).
+  - `[R]`: Reset environment with a fresh random seed.
+  - `[SPACE]`: Pause / unpause simulation.
 
-# Create and activate virtual environment
-python -m venv .venv
-.\.venv\Scripts\activate   # On Windows
-# source .venv/bin/activate # On Linux/macOS
-
-# Install dependencies
-pip install -r requirements.txt
+### 2. Run Comprehensive Audited Evaluation Suite
+Run the full 100-episode-per-cell benchmark, baseline comparisons, ablations, message analyses, and cluster bootstrap:
+```bash
+# Run full audited benchmark (100 episodes per cell across 100 held-out seeds)
+python scripts/audit_and_evaluate_v2.py --episodes-per-cell 100
 ```
 
----
-
-## 6. How to Run STRATOS AI
-
-### 1. Launch Interactive Game / Demonstration
-Runs the real-time Pygame tactical interface:
-```bash
-python scripts/run_game.py
-```
-*Keyboard Controls*:
-- `[SPACE]`: Pause / Resume simulation
-- `[R]`: Reset episode
-- `[UP / DOWN]`: Adjust simulation speed (FPS)
-- `[Q / ESC]`: Exit window
-
-### 2. Train the Reinforcement Learning Model
-Trains the multi-agent PPO policy across rollouts and saves checkpoints to `artifacts/checkpoints/`:
-```bash
-python scripts/train_model.py --timesteps 12000 --seed 42
-```
-
-### 3. Evaluate Saved Policies & Run Comparative Benchmarks
-Evaluates the model across independent and coordinated conditions against all three opponent strategies:
-```bash
-python scripts/evaluate_model.py --compare --episodes 15
-```
-
-### 4. Launch Live Research Analytics Dashboard
-Starts the interactive browser-based dashboard to inspect win rates and learning dynamics:
+### 3. Launch Research Analytics Dashboard
+Start the Streamlit dashboard to inspect win rates, team rewards, and system telemetry:
 ```bash
 streamlit run dashboard/app.py
 ```
 
-### 5. Run Automated Test Suite
-Executes the full suite of unit and integration tests:
+### 4. Run Automated Test Suite
+Run the full unit and integration test suite:
 ```bash
 pytest -v
 ```
 
 ---
 
-## 7. Experimental Methodology & Measured Results
+## 4. Empirical Research Findings (3,900 Episodes Audited)
 
-### Empirical Multi-Seed Benchmark Findings (150 Episodes Across 5 Random Seeds)
+### 4.1 Comparative Benchmark Across Held-Out Seeds (2,400 Episodes)
+Evaluated across 100 fresh held-out seeds (`5000`..`5099`) against all 3 opponent archetypes:
 
-Evaluated across seeds `42`, `101`, `202`, `303`, `404` (25 episodes per scenario, 150 episodes total):
+| Condition / Policy | Evaluated Episodes | Win Rate | Draw Rate (300 steps) | Loss Rate (Enemy Win) | Mean Cumulative Team Reward |
+|---|---|---|---|---|---|
+| **Random Action Baseline** | 300 | 3.7% | **86.7%** | **9.7%** | +87.71 |
+| **Scripted Heuristic Baseline** | 300 | **8.7%** | 67.3% | 24.0% | -15.68 |
+| **NO_COMM Baseline (MARL)** | 900 | 7.1% | 69.7% | 23.2% | +14.00 |
+| **COMM (Learned MARL)** | 900 | 8.2% | 75.0% | 16.8% | **+98.00** |
 
-| Scenario / Opponent | Mode | Win Rate (Wins / Total) | Mean Team Reward | Squad Survival | Mean Duration | Mean Communication Volume |
-|---|---|---|---|---|---|---|
-| **Aggressive Rush** | Independent | **0 / 25 (0.0%)** | -408.89 | 0.0% | 200.0 steps | 0.0 msgs |
-| **Aggressive Rush** | Coordinated | **25 / 25 (100.0%)** | **+242.26** | **33.3%** | **300.0 steps** | **819.0 msgs** |
-| **Defensive Turtle** | Independent | **25 / 25 (100.0%)** | +556.86 | 100.0% | 300.0 steps | 0.0 msgs |
-| **Defensive Turtle** | Coordinated | **25 / 25 (100.0%)** | +556.86 | 100.0% | 300.0 steps | **697.0 msgs** |
-| **Resource Focused** | Independent | **25 / 25 (100.0%)** | +408.82 | 33.3% | 232.0 steps | 0.0 msgs |
-| **Resource Focused** | Coordinated | **25 / 25 (100.0%)** | +408.82 | 33.3% | 232.0 steps | **503.0 msgs** |
+### 4.2 Statistical Inference via Hierarchical Cluster Bootstrap
+- **Unit of Replication**: Training Seed ($N=3$, seeds `42`, `101`, `202`).
+- **Win Rate Difference ($\Delta$)**: **+1.11%** (95% Cluster CI: `[-12.45%, +9.67%]`). **Not Statistically Significant**.
+- **Loss Rate Difference ($\Delta$)**: **-6.44%** (95% Cluster CI: `[-20.11%, +14.00%]`). **Not Statistically Significant**.
+- **Team Reward Difference ($\Delta$)**: **+84.00** (95% Cluster CI: `[-40.23, +272.58]`). **Not Statistically Significant**.
+- **Sign Consistency Across Seeds**: **False** for all metrics. Seed 42 showed a substantial advantage ($\Delta\text{ Reward} = +279.57$), while Seed 101 ($\Delta = -37.03$) and Seed 202 ($\Delta = +9.46$) did not exhibit consistent gains.
 
-### Statistical Summary Across All 150 Benchmark Episodes:
+### 4.3 Causal Message Ablations (1,500 Episodes)
+Evaluated on reference checkpoint Seed 42 across seeds `5000`..`5099`:
+- **Intact COMM**: Mean Reward = 236.82, Win Rate = 8.7%
+- **Zeroed Messages ($M=0$)**: Mean Reward = 236.82, Win Rate = 8.7%
+- **Random Tokens**: Mean Reward = 236.82, Win Rate = 8.7%
+- **Temporally Shuffled**: Mean Reward = 236.82, Win Rate = 8.7%
+- **Cross-Episode Swapped**: Mean Reward = 236.82, Win Rate = 8.7%
 
-| Benchmark Metric | Independent Mode (75 Episodes) | Coordinated Mode (75 Episodes) | Net Coordination Delta |
-|---|---|---|---|
-| **Overall Win Rate** | 50 / 75 (66.7%) | **75 / 75 (100.0%)** | **+33.3 percentage points** |
-| **Mean Cumulative Reward** | +185.60 points | **+402.65 points** | **+217.05 points** |
-| **Aggressive Scenario Win Rate** | 0.0% (0 / 25 wipeout) | **100.0% (25 / 25 victory)** | **+100.0 percentage points** |
-| **Mean Communication Volume** | 0.0 msgs | **673.0 msgs** | Active real-time exchange |
+*Analysis*: In Seed 42, zeroing or randomizing messages altered physical actions in **0 out of 8,620 evaluated steps** under deterministic greedy execution. Seed 42 achieved superior performance through strong individual tactical behaviors rather than active reliance on communication. In contrast, Seeds 101 and 202 alter actions on 19.9% and 68.0% of steps when messages are modified, but their coordinated policies remain unstable.
 
-### Key Experimental Insights:
-1. **Aggressive Rush Defense**: Against immediate hostile base rushes, independent agents without communication suffer squad wipeouts (0% win rate). Coordinated agents transmit emergency `DEFEND_BASE` and `REQUEST_SUPPORT` directives, organizing perimeter defense and winning **100% of matches**.
-2. **Defensive Turtling & Tactical Sieges**: Coordinated units leverage `ATTACK_TARGET` directives to execute synchronized squad assaults, wiping out fortified enemy defenders and finishing matches early with superior reward (+556.86).
-3. **Resource Harvesting Synchronization**: Coordinated agents maintain resource alarms (`RESOURCE_LOW`), balancing crystal gathering with perimeter defense to defeat resource-focused opponents cleanly.
-
----
-
-## 8. Limitations & Future Roadmap
-
-- **Kinematics**: Uses 2D point-mass kinematics with vector boundaries rather than heavy rigid-body physics engines to maximize training throughput.
-- **Symbolic Protocol**: Features structured symbolic messages rather than continuous latent emergent channels.
-- **Future Directions**:
-  - Continuous emergent communication via TarMAC / CommNet.
-  - Asymmetric self-play training with co-evolving opponent squads.
-  - Multi-agent hierarchical credit assignment.
+### 4.4 Message Semantics & Information Theory
+- **Token Usage**: Across 766,566 steps, agents collapsed to using only 4 tokens (Tokens 1, 3, 4, 8). Tokens 0, 2, 5, 6, 7 were completely unused (0.0%).
+- **Shannon Entropy**: Commander (1.900 bits), Defense (1.870 bits), Attack (1.764 bits) vs. theoretical max 3.170 bits.
+- **Mutual Information**: All measured values between tokens and environmental events (enemies, low HP, hazards, resources, waves) were low ($< 0.20\text{ bits}$), indicating that emergent tokens lack crisp semantic grounding.
 
 ---
 
-## 9. License & Attribution
+## 5. Artifacts and Generated Figures
 
-Developed by **NEXUS AI Research Team** for advanced multi-agent reinforcement learning simulation and research benchmarking. Open-source under the MIT License.
+- `artifacts/experiments/PROTOCOL.md`: Full documentation of experimental protocol, validation seeds, and test setup.
+- `artifacts/experiments/comm_vs_nocomm_performance.png`: Win rate and reward comparisons across conditions and baselines.
+- `artifacts/experiments/ablation_causality.png`: Causal ablation comparisons across all conditions.
+- `artifacts/experiments/token_distribution_and_mi.png`: Token frequency distributions and mutual information metrics.
+- `artifacts/experiments/training_health_curves.png`: Training reward trajectories and final entropy across all 6 runs.
+- `artifacts/experiments/final_evaluation_100eps.csv`: Raw 2,400 main evaluation episode records.
+- `artifacts/experiments/ablation_study_100eps.csv`: Raw 1,500 ablation episode records.
+- `artifacts/experiments/comm_vs_nocomm_statistical_report.json`: Machine-readable statistical test results and cluster bootstrap CIs.
+- `artifacts/experiments/message_analysis_semantics.json`: Machine-readable message entropy and mutual information data.
+
+---
+
+## 6. Known Limitations
+
+While STRATOS v3 establishes a proven communication value gap (+32.0% win rate for Oracle Messenger over Silence), several scientific and engineering limitations remain:
+
+1. **Receiver Grounding Bottleneck**:
+   Although auxiliary fact prediction losses (`COMM_AUX`) force the sender's encoder to represent hidden state (boosting weak lane mutual information up to $0.485\text{ bits}$), the downstream action policy head fails to ground these tokens into tactical decisions. In causal message ablations (zeroing, randomizing, or shuffling messages), win rates change by less than $1.3\%$ across all seeds, demonstrating that the policy head remains reliant on local ego-observations.
+2. **Draw Dominance in Fortified Combat**:
+   Despite removing the survival subsidy and strictly penalizing timeout draws ($-30.0$ per agent, plus step pressure), draw rates remain between $60\%$ and $79\%$ for both learned policies and uncoordinated references. Breaching a fortified base within a 300-step horizon under partial observability requires precise joint coordination that unassisted PPO struggles to discover consistently.
+3. **Sample Size & Seed Heterogeneity ($N=3$)**:
+   Due to compute constraints, training was conducted across 3 seeds per condition. Large inter-seed variance (e.g., NO_COMM win rates range from $0.0\%$ on Seed 42 to $16.7\%$ on Seed 101) produces overlapping 95% cluster bootstrap confidence intervals. We explicitly avoid claiming statistical significance between learned COMM and NO_COMM.
+4. **Decentralized Policy Architecture**:
+   Agents utilize standard multi-agent PPO with independent policy networks. Without explicit inter-agent communication attention mechanisms (e.g., TarMAC, CommNet) or trajectory-level contrastive alignment, emergent protocol discovery suffers from non-stationary credit assignment.
+
+---
+
+## 7. License & Attribution
+
+Developed by the **NEXUS AI Research Team**. Released under the [MIT License](LICENSE).
+

@@ -1,6 +1,6 @@
-"""Rollout Buffer and Generalized Advantage Estimation (GAE) for Multi-Agent PPO."""
+"""Rollout Buffer and Generalized Advantage Estimation (GAE) for Multi-Agent PPO (v2)."""
 
-from typing import Generator, List, Tuple
+from typing import Generator, List, Optional, Tuple, Union
 import numpy as np
 import torch
 
@@ -8,7 +8,7 @@ import torch
 class MultiAgentRolloutBuffer:
     """
     Stores multi-agent rollout trajectory data and computes GAE advantages.
-    Supports mini-batch generation for PPO updates.
+    Supports both single-head and dual-head (action + learned message) PPO mini-batches.
     """
 
     def __init__(
@@ -30,14 +30,17 @@ class MultiAgentRolloutBuffer:
         # Allocate memory tensors
         self.obs = torch.zeros((buffer_size, num_agents, obs_dim), dtype=torch.float32, device=device)
         self.actions = torch.zeros((buffer_size, num_agents), dtype=torch.long, device=device)
+        self.messages = torch.zeros((buffer_size, num_agents), dtype=torch.long, device=device)
         self.logprobs = torch.zeros((buffer_size, num_agents), dtype=torch.float32, device=device)
         self.rewards = torch.zeros((buffer_size, num_agents), dtype=torch.float32, device=device)
         self.dones = torch.zeros((buffer_size, num_agents), dtype=torch.float32, device=device)
         self.values = torch.zeros((buffer_size, num_agents), dtype=torch.float32, device=device)
         self.advantages = torch.zeros((buffer_size, num_agents), dtype=torch.float32, device=device)
         self.returns = torch.zeros((buffer_size, num_agents), dtype=torch.float32, device=device)
+        self.hidden_facts = torch.zeros((buffer_size, num_agents, 2), dtype=torch.long, device=device)
 
         self.step = 0
+        self.actual_size = buffer_size
 
     def insert(
         self,
@@ -47,11 +50,21 @@ class MultiAgentRolloutBuffer:
         reward: torch.Tensor,
         done: torch.Tensor,
         value: torch.Tensor,
+        message: Optional[torch.Tensor] = None,
+        hidden_fact: Optional[torch.Tensor] = None,
     ) -> None:
         """Insert single timestep transition for all agents."""
         assert self.step < self.buffer_size, "Rollout buffer overflow!"
         self.obs[self.step].copy_(obs)
         self.actions[self.step].copy_(action)
+        if message is not None:
+            self.messages[self.step].copy_(message)
+        else:
+            self.messages[self.step].zero_()
+        if hidden_fact is not None:
+            self.hidden_facts[self.step].copy_(hidden_fact)
+        else:
+            self.hidden_facts[self.step].zero_()
         self.logprobs[self.step].copy_(logprob)
         self.rewards[self.step].copy_(reward)
         self.dones[self.step].copy_(done)
@@ -59,9 +72,7 @@ class MultiAgentRolloutBuffer:
         self.step += 1
 
     def compute_returns_and_advantages(self, next_value: torch.Tensor, next_done: torch.Tensor) -> None:
-        """
-        Compute Generalized Advantage Estimation (GAE-Lambda) across rollout.
-        """
+        """Compute Generalized Advantage Estimation (GAE-Lambda) across rollout."""
         actual_size = self.step if self.step > 0 else self.buffer_size
         self.actual_size = actual_size
         last_gae_lam = torch.zeros((self.num_agents,), device=self.device)
@@ -84,14 +95,21 @@ class MultiAgentRolloutBuffer:
     def get_batches(
         self,
         batch_size: int,
-    ) -> Generator[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor], None, None]:
+        with_messages: bool = False,
+        with_aux: bool = False,
+    ) -> Generator[Tuple[torch.Tensor, ...], None, None]:
         """
         Flatten buffer across (actual_size * num_agents) and yield mini-batches.
+        If with_messages=True and with_aux=True, returns (b_obs, b_actions, b_messages, b_logprobs, b_advantages, b_returns, b_hidden_facts).
+        If with_messages=True and with_aux=False, returns (b_obs, b_actions, b_messages, b_logprobs, b_advantages, b_returns).
+        If with_messages=False, returns (b_obs, b_actions, b_logprobs, b_advantages, b_returns).
         """
         actual_size = getattr(self, "actual_size", self.buffer_size)
         total_samples = actual_size * self.num_agents
         b_obs = self.obs[:actual_size].reshape(total_samples, self.obs_dim)
         b_actions = self.actions[:actual_size].reshape(total_samples)
+        b_messages = self.messages[:actual_size].reshape(total_samples)
+        b_hidden_facts = self.hidden_facts[:actual_size].reshape(total_samples, 2)
         b_logprobs = self.logprobs[:actual_size].reshape(total_samples)
         b_advantages = self.advantages[:actual_size].reshape(total_samples)
         b_returns = self.returns[:actual_size].reshape(total_samples)
@@ -105,10 +123,30 @@ class MultiAgentRolloutBuffer:
         for start_idx in range(0, total_samples, batch_size):
             end_idx = start_idx + batch_size
             batch_inds = indices[start_idx:end_idx]
-            yield (
-                b_obs[batch_inds],
-                b_actions[batch_inds],
-                b_logprobs[batch_inds],
-                b_advantages[batch_inds],
-                b_returns[batch_inds],
-            )
+            if with_messages and with_aux:
+                yield (
+                    b_obs[batch_inds],
+                    b_actions[batch_inds],
+                    b_messages[batch_inds],
+                    b_logprobs[batch_inds],
+                    b_advantages[batch_inds],
+                    b_returns[batch_inds],
+                    b_hidden_facts[batch_inds],
+                )
+            elif with_messages:
+                yield (
+                    b_obs[batch_inds],
+                    b_actions[batch_inds],
+                    b_messages[batch_inds],
+                    b_logprobs[batch_inds],
+                    b_advantages[batch_inds],
+                    b_returns[batch_inds],
+                )
+            else:
+                yield (
+                    b_obs[batch_inds],
+                    b_actions[batch_inds],
+                    b_logprobs[batch_inds],
+                    b_advantages[batch_inds],
+                    b_returns[batch_inds],
+                )

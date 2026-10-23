@@ -98,21 +98,50 @@ def test_communication_dataflow_to_policy():
 
 
 def test_autonomous_communication_event_triggers():
-    """Verify that environmental events populate communication features."""
+    """Verify that agent-emitted communication populates coordinator history and obs vectors."""
     from environment.strategy_game import StrategyGameEnv
 
     env = StrategyGameEnv(coordination_mode="coordinated", opponent_strategy="aggressive")
     obs, _ = env.reset(seed=42)
 
-    # Move enemies close to base to trigger threat detection
-    env.state.enemy_units["enemy_1"].x = 200.0
-    env.state.enemy_units["enemy_1"].y = 300.0
+    # Agent emits a learned tactical token (e.g. token 4 for defense alert)
+    actions = {
+        "commander": {"action": 0, "message": 4},
+        "defense": {"action": 0, "message": 0},
+        "attack": {"action": 0, "message": 0},
+    }
+    obs, _, _, _, _ = env.step(actions)
 
-    # Step environment
-    obs, _, _, _, _ = env.step({"commander": 0, "defense": 0, "attack": 0})
-
-    # Coordinator must have messages and non-zero communication features
+    # Coordinator must record the emitted transmission
     assert len(env.coordinator.message_history) > 0
-    attack_comm = obs["attack"][43:49]
+
+    # Step again to let message be delivered to teammates
+    obs2, _, _, _, _ = env.step({"commander": 0, "defense": 0, "attack": 0})
+    # Teammates should have non-zero communication features
+    comm_start = env.local_obs_dim
+    attack_comm = obs2["attack"][comm_start : comm_start + env.msg_obs_dim]
     assert np.any(attack_comm != 0.0), f"Expected non-zero comm features, got {attack_comm}"
+
+    # In independent mode, message channels remain strictly zero
+    env_indep = StrategyGameEnv(coordination_mode="independent")
+    env_indep.reset(seed=42)
+    obs_ind1, _, _, _, _ = env_indep.step(actions)
+    obs_ind2, _, _, _, _ = env_indep.step({"commander": 0, "defense": 0, "attack": 0})
+    assert np.all(obs_ind2["attack"][comm_start : comm_start + env.msg_obs_dim] == 0.0)
+
+
+def test_oracle_vs_silence_acceptance_gap():
+    """Acceptance test for Step 3: Oracle communication must decisively outperform Silence."""
+    from agents.reference_policies import OracleMessengerPolicy, SilentReferencePolicy
+    from scripts.evaluate_oracle_vs_silence import evaluate_policy
+
+    res_oracle = evaluate_policy(OracleMessengerPolicy(), num_seeds=15, seed_start=5000, opponents=["aggressive", "defensive"])
+    res_silent = evaluate_policy(SilentReferencePolicy(), num_seeds=15, seed_start=5000, opponents=["aggressive", "defensive"])
+
+    win_gap = res_oracle["win_rate"] - res_silent["win_rate"]
+    reward_gap = res_oracle["mean_reward"] - res_silent["mean_reward"]
+
+    assert win_gap >= 15.0, f"Expected win rate gap >= 15%, got {win_gap:.1f}% (Oracle: {res_oracle['win_rate']:.1f}%, Silent: {res_silent['win_rate']:.1f}%)"
+    assert reward_gap >= 40.0, f"Expected reward gap >= 40.0, got {reward_gap:.2f} (Oracle: {res_oracle['mean_reward']:.2f}, Silent: {res_silent['mean_reward']:.2f})"
+
 

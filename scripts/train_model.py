@@ -20,7 +20,7 @@ def main():
     parser.add_argument("--output-checkpoint", type=str, default=None, help="Path to save trained checkpoint")
     parser.add_argument("--history-csv", type=str, default=None, help="Path to save training history CSV")
     parser.add_argument("--history-json", type=str, default=None, help="Path to save training history JSON")
-    parser.add_argument("--role-conditioning", action="store_true", help="Enable 3-dim one-hot agent role identification in observation")
+    parser.add_argument("--role-conditioning", action="store_true", default=True, help="Enable 3-dim one-hot agent role identification in observation")
     parser.add_argument("--config", type=str, default="config/training.yaml", help="Path to training config YAML")
     parser.add_argument("--game-config", type=str, default="config/game.yaml", help="Path to game config YAML")
     args = parser.parse_args()
