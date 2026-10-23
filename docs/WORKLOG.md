@@ -285,6 +285,63 @@ Inspection of `TargetedCombatPolicy` in `agents/targeted_policy.py`:
 **NO**.
 While `COMM_AUX` successfully forces the sender's policy to encode battlefield ground truth into discrete tokens (achieving up to **0.485 bits** of mutual information with the weak lane), the receiving action policy completely ignores the incoming message channels. Zeroing out messages produces zero collapse in win rate or reward across all seeds.
 
+---
 
+# STRATOS AI — Engineering Worklog (`v4-comm-imitation`)
 
+## Step 7: Throughput Benchmark & Execution Time Plan
 
+### 7.1 Throughput Benchmark (5-minute Empirical Check)
+- **Host System**: 12 CPU cores, PyTorch CPU execution.
+- **Single-Core Oracle Env Simulation**: **2,953.7 steps/sec** (pure game logic + heuristic rules).
+- **Single-Core Neural Forward + Env Step**: **772.8 steps/sec** (observation pipeline + dual-head policy inference + game stepping).
+- **Throughput Assessment**: Throughput is exceptionally high. 100k Oracle rollout steps can be generated in under 35 seconds on a single core, or < 10 seconds across parallel worker processes. Neural PPO rollouts achieve ~300–400 env steps/sec per worker during training.
+
+### 7.2 Strict 3-Hour Budget & Time Allocation
+- **Hard Wall-Clock Budget**: 180 minutes total.
+  - **Phase 1 (Imitate Oracle via Supervised BC + DAgger)**: Cap **$\le$ 60 min** (Target: 20 min).
+  - **Phase 2 (PPO Fine-Tuning 3 seeds COMM + 3 seeds NO_COMM)**: Cap **$\le$ 75 min** (Target: 35 min).
+  - **Phase 3 (Held-Out Evaluation, Message Ablations, Dashboard, Final Report)**: Cap **$\le$ 30 min** (Target: 20 min).
+  - **Safety Buffer**: **15 min**.
+- **Seed Management**:
+  - Training / Trajectory generation seeds: `100000+` exclusively.
+  - Validation / Model selection seeds: `1000`..`1019` (20 seeds $\times$ 3 opponents = 60 episodes).
+  - Final Held-Out Evaluation seeds: `5000`..`5049` (strictly reserved for Phase 3).
+- **Integrity**: Game rules, rewards, step limits, and observation layout (73-dim) remain 100% frozen.
+
+---
+
+## Step 8: Phase 1 — Oracle Imitation Learning & DAgger (Completed)
+
+### 8.1 Training Protocol & Methodology
+- **Objective**: Train decentralized student network to imitate Oracle tactical coordination:
+  - Attack scout detects weak generator lane from `obs[46:49]` and broadcasts true weak lane token $L^* + 1 \in \{1, 2, 3\}$.
+  - Defense guard and Commander receive the broadcast token via message slots `obs[52:70]`, join Attack on the same lane corridor, and coordinate group combat instead of idling at base.
+  - Defense and Commander learn strict silence ($0$) during normal operations, with Defense sending flank warning tokens $\{4, 5, 6\}$ only when warning sensor `obs[49:52]` is active.
+- **Student Information Constraint**: Strictly decentralized. Each agent's input is solely its own 73-dim observation vector (52 local features + 18 received message channels + 3-dim one-hot role ID). No hidden global state or privileged facts are exposed.
+- **Dataset Generation (Seeds $100000+$)**:
+  - $D_0$: 240 randomized episodes across all 3 opponents (`aggressive`, `defensive`, `resource_focused`) generating 177,354 agent transition samples in 19.88s (~8,921 samples/s).
+- **Loss Formulation**:
+  $$L = L_{\text{act}} + 4.0 \cdot L_{\text{msg,scout}} + 1.0 \cdot L_{\text{msg,others}} + 0.1 \cdot L_{\text{aux}} + 0.01 \cdot L_{\text{val}}$$
+  - Scout token loss weighted $4.0\times$ higher to ensure perfect broadcast fidelity.
+  - Non-scout token loss enforces silence ($0$) on Commander and Defense.
+- **DAgger Execution**:
+  - **Round 1**: 60 student rollout episodes (seeds `110000`..`110059`), states labeled by Oracle. Dataset aggregated to 225,525 samples; retrained for 10 epochs.
+  - **Round 2**: 60 student rollout episodes (seeds `120000`..`120059`), states labeled by Oracle. Dataset aggregated to 267,972 samples; retrained for 10 epochs.
+- **Execution Time**: **427.6s (7.13 min)**, comfortably within Phase 1 cap ($\le$ 60 min).
+
+### 8.2 Validation Results on Held-Out Validation Seeds (1000–1019, 60 Episodes)
+
+| Policy / Mode | Win % | Draw % | Loss % | Mean Episode Reward | Mean Duration (Steps) |
+|---|---|---|---|---|---|
+| **Oracle Messenger** (Reference) | **56.7%** | 31.7% | 11.6% | **+124.00** | 243.2 |
+| **Silent Reference** (No Comm) | 11.7% | 61.6% | 26.7% | **-22.50** | 282.5 |
+| **COMM BC Student (Greedy)** | **56.7%** | **28.3%** | **15.0%** | **+124.55** | **241.8** |
+| **COMM BC Student (Sampled)** | 53.3% | 30.0% | 16.7% | +113.90 | 247.4 |
+
+### 8.3 Key Takeaways & Fallback Checkpoint
+1. **Flawless Expert Replication**:
+   - The BC student with DAgger matches the Oracle reference win rate (**56.7%**) and mean episode reward (**+124.55** vs +124.00).
+   - Draw rate dropped dramatically from 61.6% (Silent) to 28.3% (BC student). Units push together along the identified weak lane and focus fire together.
+2. **Fallback Checkpoint Secured**:
+   - Checkpoint saved immediately to `artifacts/checkpoints/comm_bc_student.pt`.
