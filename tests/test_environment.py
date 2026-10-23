@@ -183,3 +183,33 @@ def test_partial_observability():
     # Enemy slice is [19:31] (3 enemies * 4 features)
     enemy_slice = obs_def[19:31]
     assert np.all(enemy_slice == 0.0), f"Defense should not see distant enemies: {enemy_slice}"
+
+
+def test_sync_vec_env():
+    """Verify batched synchronous multi-environment stepping."""
+    from environment.vec_env import SyncVecEnv
+
+    vec_env = SyncVecEnv(num_envs=3, coordination_mode="coordinated")
+    assert vec_env.num_envs == 3
+    assert vec_env.obs_dim == 67
+
+    all_obs, all_infos = vec_env.reset(seed=100)
+    assert len(all_obs) == 3
+    for obs in all_obs:
+        assert len(obs) == 3
+        for agent in vec_env.possible_agents:
+            assert obs[agent].shape == (67,)
+
+    actions_list = [
+        {"commander": {"action": 0, "message": 1}, "defense": {"action": 1, "message": 0}, "attack": {"action": 2, "message": 0}},
+        {"commander": {"action": 1, "message": 0}, "defense": {"action": 2, "message": 1}, "attack": {"action": 0, "message": 0}},
+        {"commander": {"action": 2, "message": 0}, "defense": {"action": 0, "message": 0}, "attack": {"action": 1, "message": 1}},
+    ]
+    next_obs, rews, terms, truncs, infos = vec_env.step(actions_list)
+
+    assert len(next_obs) == 3
+    assert len(rews) == 3
+    for i in range(3):
+        for agent in vec_env.possible_agents:
+            assert isinstance(rews[i][agent], (int, float))
+

@@ -1,6 +1,6 @@
-"""Proximal Policy Optimization (PPO) Multi-Agent Algorithm."""
+"""Proximal Policy Optimization (PPO) Multi-Agent Algorithm with Learned Communication (v2)."""
 
-from typing import Dict
+from typing import Dict, Optional
 import torch
 import torch.nn as nn
 from torch.optim import Adam
@@ -10,7 +10,8 @@ from training.rollout import MultiAgentRolloutBuffer
 
 class PPOTrainer:
     """
-    PPO optimization engine with clipped surrogate objective, value loss, and entropy regularization.
+    PPO optimization engine supporting dual-head policies (Action + Communication message).
+    Includes clipped surrogate objective, value loss, entropy regularization, and LR scheduling.
     """
 
     def __init__(
@@ -27,11 +28,23 @@ class PPOTrainer:
         self.device = torch.device(device)
         self.policy.to(self.device)
 
+        self.initial_lr = lr
+        self.current_lr = lr
         self.optimizer = Adam(self.policy.parameters(), lr=lr, eps=1e-5)
         self.clip_eps = clip_eps
         self.value_coef = value_coef
         self.entropy_coef = entropy_coef
         self.max_grad_norm = max_grad_norm
+
+    def set_learning_rate(self, lr: float) -> None:
+        """Update optimizer learning rate (for linear annealing)."""
+        self.current_lr = max(1e-7, lr)
+        for param_group in self.optimizer.param_groups:
+            param_group["lr"] = self.current_lr
+
+    def set_entropy_coef(self, coef: float) -> None:
+        """Update entropy regularization coefficient (for entropy annealing)."""
+        self.entropy_coef = coef
 
     def update(
         self,
@@ -45,12 +58,22 @@ class PPOTrainer:
         entropies = []
         approx_kls = []
 
-        for _ in range(ppo_epochs):
-            for batch in buffer.get_batches(batch_size):
-                b_obs, b_actions, b_old_logprobs, b_advantages, b_returns = batch
+        has_comm = getattr(self.policy, "has_comm_head", False)
 
-                # Evaluate actions under updated policy
-                _, new_logprobs, entropy, new_values = self.policy.get_action_and_value(b_obs, b_actions)
+        for _ in range(ppo_epochs):
+            for batch in buffer.get_batches(batch_size, with_messages=has_comm):
+                if has_comm:
+                    b_obs, b_actions, b_messages, b_old_logprobs, b_advantages, b_returns = batch
+                    # Dual-head forward
+                    _, _, new_act_logprobs, new_msg_logprobs, entropy, new_values = (
+                        self.policy.get_actions_and_values(b_obs, b_actions, b_messages)
+                    )
+                    new_logprobs = new_act_logprobs + new_msg_logprobs
+                else:
+                    b_obs, b_actions, b_old_logprobs, b_advantages, b_returns = batch
+                    # Single-head forward
+                    _, new_logprobs, entropy, new_values = self.policy.get_action_and_value(b_obs, b_actions)
+
                 new_values = new_values.squeeze(-1)
 
                 # Compute importance ratio
@@ -90,4 +113,5 @@ class PPOTrainer:
             "value_loss": float(sum(v_losses) / max(1, len(v_losses))),
             "entropy": float(sum(entropies) / max(1, len(entropies))),
             "approx_kl": float(sum(approx_kls) / max(1, len(approx_kls))),
+            "learning_rate": self.current_lr,
         }

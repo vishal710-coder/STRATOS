@@ -22,6 +22,7 @@ class EpisodeMetric:
     enemy_units_eliminated: int
     friendly_resources_collected: float
     messages_exchanged: int
+    win_type: str = "unknown"
 
 
 def aggregate_metrics(episode_records: List[EpisodeMetric]) -> Dict[str, Any]:

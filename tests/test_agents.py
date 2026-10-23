@@ -53,3 +53,35 @@ def test_opponent_controller():
 
     with pytest.raises(ValueError):
         OpponentController(strategy="invalid_strat")
+
+
+def test_dual_head_policy_shapes():
+    """Verify dual-head ActorCriticPolicy (Action + Learned Communication Token)."""
+    from agents.policies import CentralizedCritic
+
+    policy = ActorCriticPolicy(obs_dim=67, act_dim=7, msg_dim=9, hidden_dim=128, has_comm_head=True)
+    obs = torch.randn(5, 67)
+
+    actions, msgs, act_logp, msg_logp, entropy, values = policy.get_actions_and_values(obs)
+
+    assert actions.shape == (5,)
+    assert msgs.shape == (5,)
+    assert act_logp.shape == (5,)
+    assert msg_logp.shape == (5,)
+    assert entropy.shape == (5,)
+    assert values.shape == (5, 1)
+
+    # Check discrete ranges
+    assert torch.all(actions >= 0) and torch.all(actions < 7)
+    assert torch.all(msgs >= 0) and torch.all(msgs < 9)
+
+
+def test_centralized_critic():
+    """Verify MAPPO centralized critic evaluating joint state."""
+    from agents.policies import CentralizedCritic
+
+    critic = CentralizedCritic(state_dim=67 * 3, hidden_dim=128)
+    joint_state = torch.randn(4, 67 * 3)
+    val = critic(joint_state)
+    assert val.shape == (4, 1)
+

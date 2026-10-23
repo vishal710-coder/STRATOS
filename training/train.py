@@ -67,9 +67,15 @@ def train_stratos(
     num_agents = len(env.possible_agents)
     obs_dim = env.obs_dim
     act_dim = 7
+    has_comm_head = (coordination_mode == "coordinated")
 
     # Initialize Policy & PPO Trainer
-    policy = ActorCriticPolicy(obs_dim=obs_dim, act_dim=act_dim).to(device)
+    policy = ActorCriticPolicy(
+        obs_dim=obs_dim,
+        act_dim=act_dim,
+        msg_dim=env.msg_tokens,
+        has_comm_head=has_comm_head,
+    ).to(device)
     trainer = PPOTrainer(
         policy=policy,
         lr=float(cfg["hyperparameters"]["learning_rate"]),
@@ -118,7 +124,7 @@ def train_stratos(
     latest_update_metrics: Dict[str, float] = {}
 
     if verbose:
-        print(f"[STRATOS Training] Device: {device} | Additional Timesteps: {total_timesteps} | Base Step: {starting_step} | Mode: {coordination_mode} | Opponent: {opponent_strategy}")
+        print(f"[STRATOS Training] Device: {device} | Additional Timesteps: {total_timesteps} | Base Step: {starting_step} | Mode: {coordination_mode} | CommHead: {has_comm_head} | Opponent: {opponent_strategy}")
 
     last_done_val = 0.0
 
@@ -132,12 +138,25 @@ def train_stratos(
             obs_tensor = torch.as_tensor(np.array(agent_obs_list), dtype=torch.float32, device=device)
 
             with torch.no_grad():
-                action_tensor, logprob_tensor, _, value_tensor = policy.get_action_and_value(obs_tensor)
-
-            action_dict = {
-                agent: int(action_tensor[i].item())
-                for i, agent in enumerate(env.possible_agents)
-            }
+                if policy.has_comm_head:
+                    action_tensor, msg_tensor, act_logp, msg_logp, _, value_tensor = (
+                        policy.get_actions_and_values(obs_tensor)
+                    )
+                    logprob_tensor = act_logp + msg_logp
+                    action_dict = {
+                        agent: {
+                            "action": int(action_tensor[i].item()),
+                            "message": int(msg_tensor[i].item()),
+                        }
+                        for i, agent in enumerate(env.possible_agents)
+                    }
+                else:
+                    action_tensor, logprob_tensor, _, value_tensor = policy.get_action_and_value(obs_tensor)
+                    msg_tensor = None
+                    action_dict = {
+                        agent: int(action_tensor[i].item())
+                        for i, agent in enumerate(env.possible_agents)
+                    }
 
             # Step environment
             next_obs, rewards, terminations, truncations, infos = env.step(action_dict)
@@ -159,6 +178,7 @@ def train_stratos(
                 reward=reward_tensor,
                 done=done_tensor,
                 value=value_tensor.squeeze(-1),
+                message=msg_tensor,
             )
 
             episode_reward += float(sum(rewards.values()))
@@ -168,6 +188,7 @@ def train_stratos(
             if done_val > 0.5:
                 episode_count += 1
                 winner = env.state.winner if env.state else "unknown"
+                win_type = env.state.win_type if env.state else "unknown"
                 if winner == "friendly":
                     episode_wins += 1
 
@@ -178,6 +199,7 @@ def train_stratos(
                     "opponent_strategy": current_opponent,
                     "episode_reward": round(episode_reward, 2),
                     "winner": winner,
+                    "win_type": win_type,
                     "friendly_win_rate": round(episode_wins / max(1, episode_count), 3),
                     "friendly_base_hp": env.state.bases["friendly"].hp if env.state else 0,
                     "enemy_base_hp": env.state.bases["enemy"].hp if env.state else 0,
@@ -189,7 +211,7 @@ def train_stratos(
                 if verbose and (episode_count % 5 == 0 or episode_count == 1):
                     print(
                         f"Step {current_step}/{total_timesteps} (Global: {starting_step + current_step}) | Ep {starting_episodes + episode_count} | "
-                        f"Opp: {current_opponent} | Reward: {episode_reward:.1f} | Winner: {winner} | WinRate: {record['friendly_win_rate']:.2f}"
+                        f"Opp: {current_opponent} | Reward: {episode_reward:.1f} | Winner: {winner} ({win_type}) | WinRate: {record['friendly_win_rate']:.2f}"
                     )
 
                 episode_reward = 0.0
@@ -215,6 +237,14 @@ def train_stratos(
             )
 
         buffer.compute_returns_and_advantages(next_value, next_done)
+
+        # LR decay & Entropy annealing
+        progress = min(1.0, current_step / max(1, total_timesteps))
+        init_lr = float(cfg["hyperparameters"]["learning_rate"])
+        trainer.set_learning_rate(init_lr * max(0.01, 1.0 - progress))
+        # Anneal entropy: 0.02 down to 0.005
+        trainer.set_entropy_coef(0.02 * (1.0 - progress) + 0.005 * progress)
+
         update_metrics = trainer.update(
             buffer=buffer,
             batch_size=int(cfg["hyperparameters"]["batch_size"]),
