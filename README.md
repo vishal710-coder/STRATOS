@@ -153,6 +153,22 @@ Evaluated on reference checkpoint Seed 42 across seeds `5000`..`5099`:
 
 ---
 
-## 6. License & Attribution
+## 6. Known Limitations
+
+While STRATOS v3 establishes a proven communication value gap (+32.0% win rate for Oracle Messenger over Silence), several scientific and engineering limitations remain:
+
+1. **Receiver Grounding Bottleneck**:
+   Although auxiliary fact prediction losses (`COMM_AUX`) force the sender's encoder to represent hidden state (boosting weak lane mutual information up to $0.485\text{ bits}$), the downstream action policy head fails to ground these tokens into tactical decisions. In causal message ablations (zeroing, randomizing, or shuffling messages), win rates change by less than $1.3\%$ across all seeds, demonstrating that the policy head remains reliant on local ego-observations.
+2. **Draw Dominance in Fortified Combat**:
+   Despite removing the survival subsidy and strictly penalizing timeout draws ($-30.0$ per agent, plus step pressure), draw rates remain between $60\%$ and $79\%$ for both learned policies and uncoordinated references. Breaching a fortified base within a 300-step horizon under partial observability requires precise joint coordination that unassisted PPO struggles to discover consistently.
+3. **Sample Size & Seed Heterogeneity ($N=3$)**:
+   Due to compute constraints, training was conducted across 3 seeds per condition. Large inter-seed variance (e.g., NO_COMM win rates range from $0.0\%$ on Seed 42 to $16.7\%$ on Seed 101) produces overlapping 95% cluster bootstrap confidence intervals. We explicitly avoid claiming statistical significance between learned COMM and NO_COMM.
+4. **Decentralized Policy Architecture**:
+   Agents utilize standard multi-agent PPO with independent policy networks. Without explicit inter-agent communication attention mechanisms (e.g., TarMAC, CommNet) or trajectory-level contrastive alignment, emergent protocol discovery suffers from non-stationary credit assignment.
+
+---
+
+## 7. License & Attribution
 
 Developed by the **NEXUS AI Research Team**. Released under the [MIT License](LICENSE).
+

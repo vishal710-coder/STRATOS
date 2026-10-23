@@ -26,8 +26,12 @@ artifacts/checkpoints/*.pt
 !artifacts/checkpoints/stratos_policy_candidate_fix_5000step.pt
 !artifacts/checkpoints/stratos_policy_latest.pt
 !artifacts/checkpoints/.gitkeep
+artifacts/experiments/**/*.csv
+artifacts/experiments/**/*.json
 artifacts/experiments/*.csv
 artifacts/experiments/*.json
+!artifacts/experiments/**/resumed_train_report.json
+!artifacts/experiments/**/sanity_train_report.json
 !artifacts/experiments/multiseed_candidate_evaluation_summary.json
 !artifacts/experiments/.gitkeep
 

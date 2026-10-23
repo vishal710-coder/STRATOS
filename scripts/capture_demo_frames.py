@@ -63,7 +63,7 @@ def capture_demo(output_dir: str, checkpoint_path: str, mode: str = "coordinated
 
 if __name__ == "__main__":
     out_dir = "artifacts/demo_frames"
-    comm_ckpt = "artifacts/checkpoints/stratos_policy_comm_seed42.pt"
-    latest_ckpt = "artifacts/checkpoints/stratos_policy_latest.pt"
-    target_ckpt = comm_ckpt if Path(comm_ckpt).exists() else latest_ckpt
+    v3_ckpt = "artifacts/checkpoints/v3_resumed/comm_s101.pt"
+    sanity_ckpt = "artifacts/checkpoints/v3_sanity/comm_s42.pt"
+    target_ckpt = v3_ckpt if Path(v3_ckpt).exists() else sanity_ckpt
     capture_demo(out_dir, target_ckpt, mode="coordinated", opponent="aggressive")
