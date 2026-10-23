@@ -80,29 +80,16 @@ class ScriptedHeuristicPolicy:
         # Check active hazard storm nearby
         storm_near = obs[45] > 0.5
 
-        if agent == "commander":
-            if friendly_base_hp < 0.6 or (enemy_visible and friendly_base_hp < 0.9):
-                return ActionType.DEFEND_PERIMETER
-            if friendly_res < 60.0 and res_visible:
-                return ActionType.MOVE_RESOURCE
-            if enemy_visible:
-                return ActionType.ATTACK_NEAREST_ENEMY
-            return ActionType.MOVE_ENEMY_BASE
-
-        elif agent == "defense":
-            if self_hp_ratio < 0.25:
-                return ActionType.TACTICAL_RETREAT
-            if enemy_visible:
-                return ActionType.ATTACK_NEAREST_ENEMY
+        if self_hp_ratio < 0.25:
+            return ActionType.TACTICAL_RETREAT
+        if enemy_visible:
+            return ActionType.ATTACK_NEAREST_ENEMY
+        if agent == "defense":
             return ActionType.DEFEND_PERIMETER
-
+        elif agent == "commander":
+            return ActionType.DEFEND_PERIMETER if friendly_base_hp < 0.8 else ActionType.MOVE_ENEMY_BASE
         elif agent == "attack":
-            if self_hp_ratio < 0.20:
-                return ActionType.TACTICAL_RETREAT
-            if enemy_visible:
-                return ActionType.ATTACK_NEAREST_ENEMY
             return ActionType.MOVE_ENEMY_BASE
-
         return ActionType.HOLD
 
 

@@ -213,3 +213,63 @@ def test_sync_vec_env():
         for agent in vec_env.possible_agents:
             assert isinstance(rews[i][agent], (int, float))
 
+
+def test_reward_ordering_acceptance():
+    """Acceptance test: Random policy must score below Scripted Heuristic, and Heuristic below Targeted."""
+    from scripts.audit_and_evaluate_v2 import RandomPolicy, ScriptedHeuristicPolicy
+    from agents.targeted_policy import TargetedCombatPolicy
+
+    rand_bot = RandomPolicy()
+    heur_bot = ScriptedHeuristicPolicy()
+    good_bot = TargetedCombatPolicy()
+
+    seeds = list(range(5000, 5015))
+    opponents = ["aggressive", "resource_focused"]
+
+    results = {"random": [], "heuristic": [], "targeted": []}
+
+    for opp in opponents:
+        env = StrategyGameEnv(coordination_mode="independent", opponent_strategy=opp)
+        for s in seeds:
+            # 1. Random
+            obs, _ = env.reset(seed=s)
+            r_tot = 0.0
+            rng = np.random.default_rng(s)
+            while True:
+                act = {a: rand_bot.select_action(a, obs[a], rng) for a in env.possible_agents}
+                obs, r, term, trunc, _ = env.step(act)
+                r_tot += sum(r.values())
+                if any(term.values()) or any(trunc.values()):
+                    break
+            results["random"].append(r_tot)
+
+            # 2. Heuristic
+            obs, _ = env.reset(seed=s)
+            r_tot = 0.0
+            while True:
+                act = {a: heur_bot.select_action(a, obs[a], rng) for a in env.possible_agents}
+                obs, r, term, trunc, _ = env.step(act)
+                r_tot += sum(r.values())
+                if any(term.values()) or any(trunc.values()):
+                    break
+            results["heuristic"].append(r_tot)
+
+            # 3. Targeted Good Policy
+            obs, _ = env.reset(seed=s)
+            r_tot = 0.0
+            while True:
+                act = {a: good_bot.select_action(a, obs[a], rng) for a in env.possible_agents}
+                obs, r, term, trunc, _ = env.step(act)
+                r_tot += sum(r.values())
+                if any(term.values()) or any(trunc.values()):
+                    break
+            results["targeted"].append(r_tot)
+
+    mean_rand = np.mean(results["random"])
+    mean_heur = np.mean(results["heuristic"])
+    mean_good = np.mean(results["targeted"])
+
+    assert mean_rand < mean_heur, f"Expected Random ({mean_rand:.2f}) < Heuristic ({mean_heur:.2f})"
+    assert mean_heur < mean_good, f"Expected Heuristic ({mean_heur:.2f}) < Targeted ({mean_good:.2f})"
+
+

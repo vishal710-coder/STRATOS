@@ -48,19 +48,52 @@ Log and decompose the exact per-episode reward contributions across policies on 
 
 ## Step 2: Fix the Reward (Next Step)
 
-### Plan:
+### 2.1 Implementation & Reward Redesign
 1. **Clear Terminal Separation**:
-   - True Real Win (Enemy base destroyed or squad wipeout): **+250.0** per agent (+750.0 team).
-   - Real Loss (Friendly base destroyed or friendly wipeout): **-150.0** per agent (-450.0 team).
-   - Timeout Draw: **-50.0** per agent (-150.0 team). Stalling must produce a strictly negative expected value.
-2. **Remove Survival/Passivity Bonus**:
-   - Eliminate `self.survival_bonus = 0.02`. Time survival must never be rewarded on its own.
-3. **Small Potential-Based Shaping**:
-   - Progress toward enemy base / objective: small potential difference $\Phi(s') - \Phi(s)$.
-   - Damage dealt: moderate scale (e.g. 0.04), damage taken: -0.04.
-   - Kills: +15.0, losses: -15.0.
-   - Modest step penalty: -0.05 to encourage finishing matches decisively.
-4. **Acceptance Test**:
-   - Verify empirically and in unit tests that:
-     `Mean Reward(Random)` $\ll$ `Mean Reward(Scripted Heuristic)` $\ll$ `Mean Reward(Targeted/Good Policy)`.
-   - Add automated test assertions to `tests/test_environment.py`.
+   - Real Win: `+200.0` per agent (+600.0 team sum).
+   - Real Loss: `-100.0` per agent (-300.0 team sum).
+   - Timeout Draw: `-30.0` per agent (-90.0 team sum).
+2. **Removed Survival Subsidy**:
+   - Eliminated `survival_bonus = 0.02`. Pure time-survival awards 0 points.
+3. **Mild Step Penalty**:
+   - `step_penalty = -0.05` per agent (-0.15 team/step) creating consistent pressure to win decisively.
+4. **Potential-Based Progress Shaping**:
+   - $\Phi(s) = \sum_{u \in \text{friendly alive}} (1.0 - \text{dist}(u, \text{enemy\_base}) / \text{diag})$.
+   - $F = \Delta \Phi \times 0.5$. Strictly telescoping and cycle-invariant.
+5. **Combat Shaping Weights**:
+   - Enemy kills: +15.0, friendly losses: -15.0.
+   - Enemy base dmg scale: +0.08, friendly base dmg scale: -0.08.
+   - Enemy unit dmg scale: +0.05, friendly unit dmg scale: -0.05.
+
+### 2.2 Acceptance Test Results (Verified)
+- **Random Policy**: Mean Reward = **-95.85** $\pm$ 27.58
+- **Scripted Heuristic**: Mean Reward = **-25.81** $\pm$ 51.02
+- **Targeted Good Policy** (`TargetedCombatPolicy`): Mean Reward = **+257.92** $\pm$ 66.77
+- Strict ordering verified: `Random (-95.85) < Scripted Heuristic (-25.81) < Targeted Good Policy (+257.92)`.
+- Automated regression test added to `tests/test_environment.py` (`test_reward_ordering_acceptance`).
+- All 31 tests passing (`pytest`).
+
+---
+
+## Step 3: Make Communication Necessary (Next Step)
+
+### Plan:
+1. **Hidden Asymmetric Information**:
+   - **Secret Objective (Visible ONLY to Attack Scout)**:
+     At episode start, randomized enemy generator / weak point lane $L^* \in \{0, 1, 2\}$ (Top, Middle, Bottom lane generator).
+     Attacking the weak point deals $3.0\times$ bonus damage; attacking non-weak targets deals reduced damage ($0.5\times$).
+     Attack scout observes $L^*$ in its private observation slice (`obs_attack`).
+   - **Incoming Wave Flank (Visible ONLY to Defense Guard)**:
+     At dynamic wave step $T_{\text{wave}}$, enemy reinforcement flank $F^* \in \{0, 1, 2\}$ (Top, Middle, Bottom) is revealed to Defense 30 steps before arrival (`warning_steps = 30`).
+     Defense guard observes $F^*$ in its private observation slice (`obs_defense`).
+   - **Commander Asymmetry**:
+     The Commander coordinates and directs macro firepower but cannot see $L^*$ or $F^*$ directly; it must rely on messages sent by Attack and Defense.
+2. **Minimal Discrete Vocabulary & Delay**:
+   - Discrete token alphabet $M \in \{0..K\}$ (e.g. $K=4$ or $6$).
+   - 1-step transmission delay buffer preserved.
+3. **Reference Condition Evaluation (Acceptance Test)**:
+   - Construct two reference policies before training any RL:
+     1. **Silent Policy / Zeroed Messages**: Scout & Guard cannot transmit hidden facts; team attacks default/random lanes.
+     2. **Oracle Messenger Policy**: Scout & Guard transmit exact ground-truth tokens; Commander and squad converge on the weak generator and defend the exact flank.
+   - Measure the performance gap (Win rate and Team Reward) between Oracle Communication and Silence.
+   - Acceptance criterion: Oracle Communication must win significantly more often than Silence, establishing a substantial, demonstrable gap. Commit and run pytest.

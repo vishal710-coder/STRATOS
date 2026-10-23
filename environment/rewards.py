@@ -1,7 +1,9 @@
-"""Reward calculation system for STRATOS AI multi-agent reinforcement learning (v2).
+"""Reward calculation system for STRATOS AI multi-agent reinforcement learning (v3).
 
-Team-level shaped reward for enemy damage/kills, own base HP, friendly survival,
-plus a small step penalty. No role-position hacks. No resource-hoarding incentive.
+Clean, potential-based shaping with strict separation of terminal outcomes:
+Win (+200) >> Draw (-30) > Loss (-100).
+Stalling is strictly penalized via a step penalty (-0.05) and draw penalty (-30).
+No passivity subsidies or survival-time bonuses.
 """
 
 from typing import Dict, Any
@@ -12,20 +14,24 @@ class RewardCalculator:
     """Calculates team-level shaped rewards for all agents."""
 
     def __init__(self):
-        # Terminal
-        self.win_reward = 100.0
-        self.loss_penalty = -100.0
-        self.draw_reward = -10.0  # small penalty to discourage passive timeouts
+        # Terminal outcomes (clearly separated: Win >> Draw > Loss)
+        self.win_reward = 200.0      # +600 team sum for genuine victory
+        self.loss_penalty = -100.0   # -300 team sum for base destruction / wipeout
+        self.draw_reward = -30.0     # -90 team sum for timeout draw (stalling penalized)
 
-        # Shaping weights (team-level, applied to all agents equally)
+        # Step penalty to encourage decisive, efficient action
+        self.step_penalty = -0.05
+
+        # Potential-based shaping for spatial progress toward enemy base
+        self.potential_scale = 0.5
+
+        # Combat shaping weights (team-level, symmetric)
         self.enemy_base_dmg_scale = 0.08
-        self.friendly_base_dmg_scale = -0.06
-        self.enemy_unit_dmg_scale = 0.10
-        self.friendly_unit_dmg_scale = -0.08
-        self.enemy_unit_destroyed_reward = 25.0
-        self.friendly_unit_lost_penalty = -20.0
-        self.step_penalty = -0.02
-        self.survival_bonus = 0.02  # per alive friendly unit per step
+        self.friendly_base_dmg_scale = -0.08
+        self.enemy_unit_dmg_scale = 0.05
+        self.friendly_unit_dmg_scale = -0.05
+        self.enemy_unit_destroyed_reward = 15.0
+        self.friendly_unit_lost_penalty = -15.0
 
     def compute_rewards(
         self,
@@ -36,7 +42,7 @@ class RewardCalculator:
         """Compute identical team reward for each agent role."""
         reward = self.step_penalty
 
-        # Terminal rewards
+        # 1. Terminal rewards
         if curr_state.terminated or curr_state.truncated:
             if curr_state.winner == "friendly":
                 reward += self.win_reward
@@ -45,7 +51,7 @@ class RewardCalculator:
             elif curr_state.winner == "draw":
                 reward += self.draw_reward
 
-        # Damage events
+        # 2. Damage and elimination events
         enemy_base_dmg = step_events.get("enemy_base_damage", 0.0)
         friendly_base_dmg = step_events.get("friendly_base_damage", 0.0)
         enemy_unit_dmg = step_events.get("enemy_unit_damage", 0.0)
@@ -54,7 +60,6 @@ class RewardCalculator:
         enemy_units_killed = step_events.get("enemy_units_killed", 0)
         friendly_units_lost = step_events.get("friendly_units_lost", 0)
 
-        # Team performance shaping
         reward += (
             enemy_base_dmg * self.enemy_base_dmg_scale
             + friendly_base_dmg * self.friendly_base_dmg_scale
@@ -64,11 +69,22 @@ class RewardCalculator:
             + friendly_units_lost * self.friendly_unit_lost_penalty
         )
 
-        # Survival incentive: bonus per alive friendly unit
-        alive_count = sum(1 for u in curr_state.friendly_units.values() if u.is_alive)
-        reward += alive_count * self.survival_bonus
+        # 3. Potential-based progress shaping toward enemy objective
+        eb = curr_state.bases.get("enemy")
+        prev_eb = prev_state.bases.get("enemy")
+        if eb and prev_eb:
+            map_diag = (curr_state.map_width**2 + curr_state.map_height**2)**0.5
+            curr_phi = sum(
+                (1.0 - u.distance_to(eb.x, eb.y) / map_diag)
+                for u in curr_state.friendly_units.values() if u.is_alive
+            )
+            prev_phi = sum(
+                (1.0 - u.distance_to(prev_eb.x, prev_eb.y) / map_diag)
+                for u in prev_state.friendly_units.values() if u.is_alive
+            )
+            reward += (curr_phi - prev_phi) * self.potential_scale
 
-        # Identical reward for all agents (team reward, no role-specific hacks)
+        # Identical reward for all agents (pure team reward)
         rewards: Dict[str, float] = {
             "commander": reward,
             "defense": reward,
