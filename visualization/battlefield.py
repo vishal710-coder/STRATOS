@@ -343,6 +343,13 @@ class BattlefieldRenderer:
             by = int(base.y + 40)
             color = COLOR_FRIENDLY_BASE if team == "friendly" else COLOR_ENEMY_BASE
 
+            # Draw HQ Regen Aura if enabled
+            if getattr(self.env, "hq_regen", False) and team == "friendly":
+                aura_surf = pygame.Surface((130, 130), pygame.SRCALPHA)
+                pygame.draw.circle(aura_surf, (40, 220, 100, 45), (65, 65), 60)
+                pygame.draw.circle(aura_surf, (80, 255, 140, 180), (65, 65), 60, 2)
+                self.screen.blit(aura_surf, (bx - 65, by - 65))
+
             pygame.draw.circle(self.screen, (*color[:2], 120), (bx, by), 40, 2)
             pygame.draw.rect(self.screen, color, (bx - 26, by - 26, 52, 52), border_radius=8)
 
@@ -367,10 +374,14 @@ class BattlefieldRenderer:
 
         if getattr(state, "supply_drop", None) and not state.supply_drop.collected:
             dx, dy = int(state.supply_drop.x), int(state.supply_drop.y + 40)
+            if getattr(self.env, "supply_broadcast", False):
+                # Broadcast ping circles
+                pygame.draw.circle(self.screen, (80, 240, 180), (dx, dy), 32, 1)
             pygame.draw.rect(self.screen, (30, 160, 100), (dx - 12, dy - 12, 24, 24), border_radius=4)
             pygame.draw.rect(self.screen, (255, 255, 255), (dx - 12, dy - 12, 24, 24), 2, border_radius=4)
             d_txt = self.font_small.render("+SUPPLY+", True, (60, 240, 160))
             self.screen.blit(d_txt, (dx - d_txt.get_width() // 2, dy + 14))
+
 
         # 6. Draw Units & Communicating Rays
         self._draw_units_and_messages(state)

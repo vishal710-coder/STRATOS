@@ -38,6 +38,8 @@ def train_stratos(
     verbose: bool = True,
     aux_loss_coef: Optional[float] = None,
     comm_entropy_coef: Optional[float] = None,
+    entropy_coef: Optional[float] = None,
+    bc_kl_anneal_fraction: float = 0.20,
     save_interval_steps: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Execute PPO training pipeline."""
@@ -167,6 +169,7 @@ def train_stratos(
         current_opponent = opponents_pool[starting_episodes % len(opponents_pool)]
     obs, _ = env.reset(seed=seed, options={"opponent_strategy": current_opponent})
     current_step = 0
+    last_save_step = 0
     episode_count = 0
     episode_reward = 0.0
     episode_wins = 0
@@ -299,10 +302,14 @@ def train_stratos(
         # LR decay & Entropy annealing & BC KL penalty decay
         progress = min(1.0, current_step / max(1, total_timesteps))
         trainer.set_learning_rate(chosen_lr * max(0.01, 1.0 - progress))
-        # Anneal entropy: 0.02 down to 0.005
-        trainer.set_entropy_coef(0.02 * (1.0 - progress) + 0.005 * progress)
+        # Entropy: use provided fixed entropy_coef or default annealing
+        if entropy_coef is not None:
+            trainer.set_entropy_coef(float(entropy_coef))
+        else:
+            trainer.set_entropy_coef(0.02 * (1.0 - progress) + 0.005 * progress)
         if bc_pol is not None and bc_kl_coef > 0.0:
-            trainer.set_bc_kl_coef(bc_kl_coef * max(0.0, 1.0 - progress))
+            anneal_decay = max(0.0, 1.0 - (progress / max(0.001, bc_kl_anneal_fraction)))
+            trainer.set_bc_kl_coef(bc_kl_coef * anneal_decay)
 
         update_metrics = trainer.update(
             buffer=buffer,
@@ -319,12 +326,14 @@ def train_stratos(
             )
 
         # Periodic checkpoint
-        if current_step % save_interval == 0 and current_step < total_timesteps:
+        if (current_step - last_save_step) >= save_interval and current_step < total_timesteps:
+            last_save_step = (current_step // save_interval) * save_interval
             if output_checkpoint_path:
                 out_p = Path(output_checkpoint_path)
-                ckpt_path = out_p.parent / f"{out_p.stem}_step_{starting_step + current_step}{out_p.suffix}"
+                ckpt_path = out_p.parent / f"{out_p.stem}_step_{starting_step + last_save_step}{out_p.suffix}"
             else:
-                ckpt_path = checkpoints_dir / f"stratos_policy_step_{starting_step + current_step}.pt"
+                ckpt_path = checkpoints_dir / f"stratos_policy_step_{starting_step + last_save_step}.pt"
+
             save_checkpoint(
                 path=str(ckpt_path),
                 policy=policy,

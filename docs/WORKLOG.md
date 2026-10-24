@@ -681,6 +681,75 @@ Tested **Best Learned COMM** (`artifacts/checkpoints/comm_best.pt`), **Oracle Me
    - This proves that the scout's physical combat and early scouting role is irreplaceable. If scout survives to step 100, the team already knows the weak lane and has begun siege, preserving a 25.3% win rate.
    - For NO_COMM, losing the scout at step 50 or 100 results in a **0.0% win rate** and up to 73.3% losses.
 
+---
+
+## Phase 5: Rigorous Final Evaluation (Fresh Seeds 7000–7099, 300 Episodes per Condition)
+
+### 5.1 Fresh Seed Protocol & Evaluation Scope
+- Evaluated on **seeds 7000–7099** (100 seeds $\times$ 3 opponents = 300 episodes per condition).
+- Completely held-out seed bank: Never seen during training, checkpoint selection, or failure analysis.
+- Validation seeds 1000–1049 and retired seeds 5000–5049 were strictly excluded.
+
+### 5.2 Key Findings Summary
+
+| Condition / Model | Win Rate (95% CI) | Draw Rate | Loss Rate | Mean Reward (95% CI) |
+|---|---|---|---|---|
+| **Oracle Reference** | **56.3%** [50.3%, 62.0%] | 30.7% | 13.0% | **+131.70** [+110.1, +151.7] |
+| **Best Learned COMM** | **56.3%** [51.0%, 61.7%] | 29.3% | 14.3% | **+131.00** [+109.8, +150.9] |
+| **COMM BC Student** | **55.3%** [50.0%, 60.7%] | 32.0% | 12.7% | **+128.87** [+108.2, +148.9] |
+| **COMM Cluster Mean (3 Seeds)** | **56.0%** [`55.3%`, `56.3%`] | 29.8% | 14.2% | **+130.03** [`+128.9`, `+131.0`] |
+| **NO_COMM Cluster Mean (3 Seeds)**| **40.9%** [`35.0%`, `48.0%`] | 24.3% | 34.8% | **+42.67** [`+27.1`, `+63.6`] |
+| **NO_COMM BC Student** | **19.7%** [15.3%, 24.3%] | 64.3% | 16.0% | **-0.54** [-17.2, +16.0] |
+| **Silent Reference Policy** | **18.0%** [13.7%, 22.7%] | 66.3% | 15.7% | **-5.39** [-20.7, +10.9] |
+| **Scripted Heuristic** | **9.0%** [6.0%, 12.3%] | 73.0% | 18.0% | **-35.41** [-51.2, -18.7] |
+| **Random Policy** | **8.3%** [5.3%, 11.7%] | 84.7% | 7.0% | **-10.02** [-20.5, +0.3] |
+
+### 5.3 Multi-Seed Dispersion (N=3 Seeds)
+- COMM win rates: Seed 42 = **55.3%**, Seed 101 = **56.3%**, Seed 202 = **56.3%** (Mean: **56.0%**, Range: `[55.3%, 56.3%]`)
+- NO_COMM win rates: Seed 42 = **48.0%**, Seed 101 = **39.7%**, Seed 202 = **35.0%** (Mean: **40.9%**, Range: `[35.0%, 48.0%]`)
+- Win rate difference (COMM minus NO_COMM):
+  - Seed 42: $+7.3\%$
+  - Seed 101: $+16.7\%$
+  - Seed 202: $+21.3\%$
+  - **Cluster Mean Advantage**: **$+15.1\%$** (Range: `[+7.3%, +21.3%]`)
+- Reward difference (COMM minus NO_COMM):
+  - Seed 42: $+65.2$
+  - Seed 101: $+93.7$
+  - Seed 202: $+103.2$
+  - **Cluster Mean Advantage**: **$+87.4$ points** (Range: `[+65.2, +103.2]`)
+
+### 5.4 Information Theory & Message Ablations
+- **Mutual Information**:
+  - $I(M_{\text{scout}}; \text{Weak Lane}) = \mathbf{1.560\text{ bits}}$ (**98.4% of maximum channel capacity**).
+  - $I(M_{\text{defense}}; \text{Wave Flank}) = \mathbf{1.576\text{ bits}}$ during warning periods (**99.4% transmission fidelity**).
+- **Ablation on Same 300 Episodes**:
+  - Intact: **56.3% Win Rate**, $+131.00$ Reward.
+  - Zeroed (Token 0): **16.7% Win Rate** (-39.6 points), $-3.90$ Reward, **72.7% Draws**.
+  - Random Tokens: **26.7% Win Rate** (-29.6 points), $+13.50$ Reward.
+  - Time-Shuffled: **50.3% Win Rate** (-6.0 points), $+110.90$ Reward.
+
+---
+
+## Phase 6: Visualizer Verification, Documentation, and Final Readiness
+
+### 6.1 Visualizer Enhancements & Mode Verification
+- In `visualization/battlefield.py`:
+  - Mode switching verified functional for:
+    - `[1] ORACLE`: Rule-based scout & defense coordination.
+    - `[2] SILENT`: Suppressed communication control.
+    - `[3] COMM (PPO)`: Learned communication actor-critic policy (verified with `artifacts/checkpoints/comm_best.pt`).
+    - `[4] NO_COMM (PPO)`: Independent MARL baseline.
+  - Added visual indicators:
+    - Green healing aura rendered around friendly HQ when `hq_regen=True` (radius 60 px).
+    - Supply drop ping indicator rendered when `supply_broadcast=True`.
+    - Dynamic observation array padding ensures zero dimension mismatches across 52, 70, and 73-dim inputs.
+
+### 6.2 Documentation Artifacts
+- Created comprehensive scientific report: `docs/RESULTS_v5.md`.
+- Drafted pull request description: `docs/PR_v5.md`.
+- Updated `README.md` with v5 findings, seed banks, and reproduction instructions.
+
+
 
 
 
