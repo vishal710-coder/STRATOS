@@ -20,14 +20,16 @@ env/
 .coverage
 htmlcov/
 
-# Artifacts & Checkpoints
-artifacts/checkpoints/**/*.pt
-artifacts/checkpoints/*.pt
-!artifacts/checkpoints/stratos_policy_candidate_fix_5000step.pt
-!artifacts/checkpoints/stratos_policy_latest.pt
-!artifacts/checkpoints/comm_bc_student.pt
-!artifacts/checkpoints/comm_best.pt
-!artifacts/checkpoints/v5_best/best_checkpoints_metadata.json
+# Documentation (kept local, excluded from repository)
+docs/
+
+# Model Checkpoints & Policy Weights (kept private/local, excluded from repository)
+*.pt
+*.pth
+*.onnx
+*.pkl
+*.bin
+artifacts/checkpoints/*
 !artifacts/checkpoints/.gitkeep
 artifacts/experiments/**/*.csv
 artifacts/experiments/**/*.json
