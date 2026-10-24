@@ -33,6 +33,11 @@ class RewardCalculator:
         self.enemy_unit_destroyed_reward = 15.0
         self.friendly_unit_lost_penalty = -15.0
 
+        # Team cohesion shaping (behind config flag)
+        self.enable_team_cohesion = False
+        self.cohesion_dist = 120.0
+        self.cohesion_bonus = 0.05
+
     def compute_rewards(
         self,
         prev_state: GameState,
@@ -83,6 +88,25 @@ class RewardCalculator:
                 for u in prev_state.friendly_units.values() if u.is_alive
             )
             reward += (curr_phi - prev_phi) * self.potential_scale
+
+        # 4. Configurable team cohesion bonus (when enemies are in view of any friendly unit)
+        if self.enable_team_cohesion:
+            alive_f = [u for u in curr_state.friendly_units.values() if u.is_alive]
+            alive_e = [e for e in curr_state.enemy_units.values() if e.is_alive]
+            # Check if any enemy is visible to any friendly unit
+            enemy_visible = any(any(u.can_see(e.x, e.y) for e in alive_e) for u in alive_f)
+            if enemy_visible and len(alive_f) >= 2:
+                # Check if at least two friendly units are within cohesion_dist of each other
+                is_cohesive = False
+                for i in range(len(alive_f)):
+                    for j in range(i + 1, len(alive_f)):
+                        if alive_f[i].distance_to(alive_f[j].x, alive_f[j].y) <= self.cohesion_dist:
+                            is_cohesive = True
+                            break
+                    if is_cohesive:
+                        break
+                if is_cohesive:
+                    reward += self.cohesion_bonus
 
         # Identical reward for all agents (pure team reward)
         rewards: Dict[str, float] = {

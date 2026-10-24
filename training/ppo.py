@@ -3,6 +3,7 @@
 from typing import Dict, Optional
 import torch
 import torch.nn as nn
+from torch.distributions.categorical import Categorical
 from torch.optim import Adam
 from agents.policies import ActorCriticPolicy
 from training.rollout import MultiAgentRolloutBuffer
@@ -24,6 +25,8 @@ class PPOTrainer:
         comm_entropy_coef: Optional[float] = None,
         aux_loss_coef: float = 0.0,
         max_grad_norm: float = 0.5,
+        bc_policy: Optional[ActorCriticPolicy] = None,
+        bc_kl_coef: float = 0.0,
         device: str = "cpu",
     ):
         self.policy = policy
@@ -40,6 +43,13 @@ class PPOTrainer:
         self.aux_loss_coef = aux_loss_coef
         self.max_grad_norm = max_grad_norm
 
+        self.bc_policy = bc_policy
+        if self.bc_policy is not None:
+            self.bc_policy.to(self.device)
+            self.bc_policy.eval()
+        self.initial_bc_kl_coef = bc_kl_coef
+        self.current_bc_kl_coef = bc_kl_coef
+
     def set_learning_rate(self, lr: float) -> None:
         """Update optimizer learning rate (for linear annealing)."""
         self.current_lr = max(1e-7, lr)
@@ -51,6 +61,10 @@ class PPOTrainer:
         self.entropy_coef = coef
         if comm_coef is not None:
             self.comm_entropy_coef = comm_coef
+
+    def set_bc_kl_coef(self, coef: float) -> None:
+        """Update BC KL penalty coefficient (for annealing to zero)."""
+        self.current_bc_kl_coef = max(0.0, coef)
 
     def update(
         self,
@@ -65,6 +79,7 @@ class PPOTrainer:
         comm_entropies = []
         aux_losses = []
         approx_kls = []
+        bc_kl_losses = []
 
         has_comm = getattr(self.policy, "has_comm_head", False)
         use_aux = (self.aux_loss_coef > 0.0) and getattr(self.policy, "has_aux_head", False)
@@ -120,6 +135,30 @@ class PPOTrainer:
                     total_loss = total_loss + self.aux_loss_coef * aux_l
                     aux_losses.append(aux_l.item())
 
+                # BC Policy KL penalty (annealed to zero)
+                if self.bc_policy is not None and self.current_bc_kl_coef > 0.0:
+                    with torch.no_grad():
+                        bc_feat = self.bc_policy.network(b_obs)
+                        bc_act_logits = self.bc_policy.actor(bc_feat)
+                        bc_act_dist = Categorical(logits=bc_act_logits)
+                        if has_comm and getattr(self.bc_policy, "has_comm_head", False) and self.bc_policy.comm_actor is not None:
+                            bc_msg_logits = self.bc_policy.comm_actor(bc_feat)
+                            bc_msg_dist = Categorical(logits=bc_msg_logits)
+                        else:
+                            bc_msg_dist = None
+
+                    cur_act_dist = Categorical(logits=self.policy.actor(self.policy.network(b_obs)))
+                    kl_act = torch.distributions.kl.kl_divergence(cur_act_dist, bc_act_dist).mean()
+                    if bc_msg_dist is not None:
+                        cur_msg_dist = Categorical(logits=self.policy.comm_actor(self.policy.network(b_obs)))
+                        kl_msg = torch.distributions.kl.kl_divergence(cur_msg_dist, bc_msg_dist).mean()
+                        kl_bc = kl_act + kl_msg
+                    else:
+                        kl_bc = kl_act
+
+                    total_loss = total_loss + self.current_bc_kl_coef * kl_bc
+                    bc_kl_losses.append(kl_bc.item())
+
                 # Optimization step
                 self.optimizer.zero_grad()
                 total_loss.backward()
@@ -136,6 +175,7 @@ class PPOTrainer:
             "entropy": float(sum(entropies) / max(1, len(entropies))),
             "comm_entropy": float(sum(comm_entropies) / max(1, len(comm_entropies))) if comm_entropies else 0.0,
             "aux_loss": float(sum(aux_losses) / max(1, len(aux_losses))) if aux_losses else 0.0,
+            "bc_kl": float(sum(bc_kl_losses) / max(1, len(bc_kl_losses))) if bc_kl_losses else 0.0,
             "approx_kl": float(sum(approx_kls) / max(1, len(approx_kls))),
             "learning_rate": self.current_lr,
         }

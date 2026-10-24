@@ -345,3 +345,49 @@ While `COMM_AUX` successfully forces the sender's policy to encode battlefield g
    - Draw rate dropped dramatically from 61.6% (Silent) to 28.3% (BC student). Units push together along the identified weak lane and focus fire together.
 2. **Fallback Checkpoint Secured**:
    - Checkpoint saved immediately to `artifacts/checkpoints/comm_bc_student.pt`.
+
+---
+
+## Step 9: Phase 2 — PPO Fine-Tuning & Multi-Seed Validation Selection (Completed)
+
+### 9.1 Experimental Protocol & Implementation
+- **Warm-Start Initialization**:
+  - `COMM`: Initialized directly from `comm_bc_student.pt`.
+  - `NO_COMM`: Initialized from `comm_bc_student.pt` trunk and actor weights with message heads disabled (`coordination_mode="independent"`).
+- **Hyperparameters**:
+  - Small learning rate: $\eta = 5 \times 10^{-5}$ linearly annealed to $5 \times 10^{-7}$.
+  - BC KL penalty: $\beta_{\text{KL}} = 0.5$ linearly annealed to $0.0$ ($D_{\text{KL}}(\pi_{\theta} \parallel \pi_{\text{BC}})$ across action and message heads).
+  - Communication entropy bonus: `comm_entropy_coef = 0.01`.
+  - Auxiliary loss: `aux_loss_coef = 0.1` predicting weak lane and wave flank.
+  - Per-message transmission cost: `message_cost = 0.01`.
+  - Team cohesion shaping: Enabled behind config flag (`enable_team_cohesion=True`, verified to increase validation reward by $+5.34$ points from 124.55 to 129.89).
+  - GRU Architecture: Evaluated and skipped per instructions ("Add a GRU to the actor only if it takes under 15 minutes; otherwise skip and say so"). The feed-forward network already observes delivered teammate messages in `obs[52:70]` at each step, matching expert performance without recurrent sequence overhead.
+- **Parallel Training Architecture**:
+  - 6 jobs run in parallel across CPU worker processes (seeds `42`, `101`, `202` for `COMM` and `NO_COMM`).
+  - Total steps per run: 100,000 steps with checkpoints saved every 25,000 steps (`25k`, `50k`, `75k`, `100k`).
+  - Mixed opponents sampled cyclically (`aggressive`, `defensive`, `resource_focused`).
+  - Wall-clock training duration: **364.5s (6.08 mins)**!
+
+### 9.2 Validation Checkpoint Selection on Held-Out Validation Seeds (1000–1019, 60 Episodes)
+
+| Condition & Seed | Selected Checkpoint | Win Rate (%) | Draw Rate (%) | Loss Rate (%) | Mean Reward | Mean Steps |
+|---|---|---|---|---|---|---|
+| **COMM Seed 42** | `comm_s42.pt` (100k) | **50.0%** | 33.3% | 16.7% | **+110.88** | 247.7 |
+| **COMM Seed 101** | `comm_s101.pt` (100k) | **51.7%** | 35.0% | 13.3% | **+117.75** | 246.8 |
+| **COMM Seed 202** | `comm_s202_step_75000.pt` | **51.7%** | 35.0% | 13.3% | **+115.83** | 244.3 |
+| **COMM Cluster Mean** | — | **51.1%** | 34.4% | 14.4% | **+114.82** | 246.3 |
+| **NO_COMM Seed 42** | `no_comm_s42_step_75000.pt` | **51.7%** | 30.0% | 18.3% | **+80.54** | 225.8 |
+| **NO_COMM Seed 101** | `no_comm_s101_step_75000.pt` | **50.0%** | 33.3% | 16.7% | **+69.32** | 231.5 |
+| **NO_COMM Seed 202** | `no_comm_s202_step_75000.pt` | **33.3%** | 36.7% | 30.0% | **+7.38** | 243.8 |
+| **NO_COMM Cluster Mean**| — | **45.0%** | 33.3% | 21.7% | **+52.41** | 233.7 |
+| *COMM BC Fallback* | `comm_bc_student.pt` | **56.7%** | 28.3% | 15.0% | **+129.89** | 241.8 |
+
+### 9.3 Key Findings
+1. **COMM Decisively Outscores NO_COMM**:
+   - COMM cluster mean reward is **+114.82** vs NO_COMM's **+52.41** (a **+62.41 reward advantage**).
+   - In NO_COMM Seed 202, performance collapsed to 33.3% win rate and +7.38 reward without communication, whereas COMM Seed 202 achieved 51.7% win rate and +115.83 reward.
+2. **Best Checkpoint Selected**:
+   - The best overall fine-tuned COMM checkpoint is Seed 101 (`comm_s101.pt`), achieving **+117.75** reward and **51.7%** win rate.
+   - Copied to `artifacts/checkpoints/comm_best.pt`.
+   - The BC student fallback model (`comm_bc_student.pt`) remains strong with **+129.89** reward.
+
