@@ -105,17 +105,20 @@ Evaluated across 100 fresh, never-before-seen seeds (`7000`–`7099`) $\times$ 3
 |---|---|---|---|---|---|
 | **Oracle Reference Policy** | Deterministic | **56.3%** [50.3%, 62.0%] | 30.7% | 13.0% | **+131.70** [+110.1, +151.7] |
 | **Best Learned COMM (`comm_best.pt`)** | Greedy | **56.3%** [51.0%, 61.7%] | 29.3% | 14.3% | **+131.00** [+109.8, +150.9] |
-| **COMM BC Student (`comm_bc_student.pt`)**| Greedy | **55.3%** [50.0%, 60.7%] | 32.0% | 12.7% | **+128.87** [+108.2, +148.9] |
-| **COMM Cluster Mean (3 Seeds)** | Greedy | **56.0%** [`55.3%`, `56.3%`] | 29.8% | 14.2% | **+130.03** [`+128.9`, `+131.0`] |
-| **NO_COMM Cluster Mean (3 Seeds)** | Greedy | **40.9%** [`35.0%`, `48.0%`] | 24.3% | 34.8% | **+42.67** [`+27.1`, `+63.6`] |
+| **COMM Cluster Mean (3 Seeds, 100k)** | Greedy | **56.0%** [`55.3%`, `56.3%`] | 29.8% | 14.2% | **+130.03** [`+128.9`, `+131.0`] |
+| **NO_COMM Cluster Mean (3 Seeds, 100k)** | Greedy | **40.9%** [`35.0%`, `48.0%`] | 24.3% | 34.8% | **+42.67** [`+27.1`, `+63.6`] |
+| **COMM_LONG Scaled Cluster Mean (1.0M)** | Greedy | **45.3%** [`41.0%`, `48.0%`] | 43.3% | 11.4% | **+93.22** [`+66.3`, `+111.5`] |
+| **NO_COMM_LONG Scaled Cluster Mean (1.0M)**| Greedy | **34.4%** [`28.3%`, `44.7%`] | 60.0% | 5.6% | **+75.62** [`+59.6`, `+98.1`] |
 | **NO_COMM BC Student (`no_comm_bc_student.pt`)** | Greedy | 19.7% [15.3%, 24.3%] | 64.3% | 16.0% | **-0.54** [-17.2, +16.0] |
 | **Silent Reference Policy** | Rule-Based | 18.0% [13.7%, 22.7%] | 66.3% | 15.7% | **-5.39** [-20.7, +10.9] |
 | **Scripted Heuristic Baseline** | Heuristic | 9.0% [6.0%, 12.3%] | 73.0% | 18.0% | **-35.41** [-51.2, -18.7] |
 | **Random Action Baseline** | Uniform Random | 8.3% [5.3%, 11.7%] | 84.7% | 7.0% | **-10.02** [-20.5, +0.3] |
+| **EMERGENT_LONG s42 (Tabula Rasa, 1.0M)** | Greedy | **6.0%** [3.3%, 8.7%] | 53.0% | **41.0%** | **-75.00** [-93.5, -56.5] |
 
 ### Multi-Seed Advantage (COMM minus NO_COMM):
-- **Win Rate Advantage**: Mean **+15.1%** (Seed 42: $+7.3\%$, Seed 101: $+16.7\%$, Seed 202: $+21.3\%$). Range: `[+7.3%, +21.3%]`.
-- **Team Reward Advantage**: Mean **+87.4 points** (Seed 42: $+65.2$, Seed 101: $+93.7$, Seed 202: $+103.2$). Range: `[+65.2, +103.2]`.
+- **100k Fine-Tuned Cluster**: Mean advantage **+15.1% Win Rate** (`[+7.3%, +21.3%]`), **+87.4 Team Reward** (`[+65.2, +103.2]`).
+- **1.0M Scaled Cluster**: Mean advantage **+10.9% Win Rate** (`[-3.7%, +18.7%]`), **+17.6 Team Reward** (`[-31.8, +42.4]`).
+- **Tabula Rasa Breakdown**: Without BC imitation warm-start, 1.0M steps of MARL collapses to **6.0% Win Rate** and **41.0% Loss Rate** (-75.00 reward).
 
 ---
 

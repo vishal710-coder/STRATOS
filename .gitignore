@@ -27,6 +27,7 @@ artifacts/checkpoints/*.pt
 !artifacts/checkpoints/stratos_policy_latest.pt
 !artifacts/checkpoints/comm_bc_student.pt
 !artifacts/checkpoints/comm_best.pt
+!artifacts/checkpoints/v5_best/best_checkpoints_metadata.json
 !artifacts/checkpoints/.gitkeep
 artifacts/experiments/**/*.csv
 artifacts/experiments/**/*.json

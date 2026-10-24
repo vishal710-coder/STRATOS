@@ -730,6 +730,34 @@ Tested **Best Learned COMM** (`artifacts/checkpoints/comm_best.pt`), **Oracle Me
 
 ---
 
+## Phase 3: Scaled Long RL Runs (1.0M Steps, Completed)
+
+### 3.1 Training Protocol & Multi-Core Execution
+- 7 parallel long training runs executed concurrently across CPU worker processes (`task-488`):
+  - `COMM_LONG` seeds 42, 101, 202 (1,000,000 steps each).
+  - `NO_COMM_LONG` seeds 42, 101, 202 (1,000,000 steps each).
+  - `EMERGENT_LONG` seed 42 (1,000,000 steps trained from scratch without imitation prior).
+- Total training duration: 9,230.5s (153.8 mins).
+- All periodic checkpoints saved to `artifacts/checkpoints/v5_scaled/`.
+- Evaluated 30 candidate checkpoints across validation seeds `1000`–`1049` (150 eps each), selecting top checkpoints to `artifacts/checkpoints/v5_best/`:
+  - `comm_long_s42_best.pt` (step 900k, 54.0% win rate on validation)
+  - `comm_long_s101_best.pt` (step 1.0M, 47.3% win rate on validation)
+  - `comm_long_s202_best.pt` (step 300k, 39.3% win rate on validation)
+  - `no_comm_long_s42_best.pt` (step 900k, 27.3% win rate on validation)
+  - `no_comm_long_s101_best.pt` (step 1.0M, 34.0% win rate on validation)
+  - `no_comm_long_s202_best.pt` (step 1.0M, 47.3% win rate on validation)
+  - `emergent_long_s42_best.pt` (step 600k, 10.7% win rate on validation)
+
+### 3.2 Evaluation on Fresh Seeds (7000–7099, 300 Episodes per Model)
+- `COMM_LONG` Scaled Cluster Mean: **45.3% Win Rate**, **+93.22 Reward** (Loss: 11.4%).
+- `NO_COMM_LONG` Scaled Cluster Mean: **34.4% Win Rate**, **+75.62 Reward** (Loss: 5.6%).
+- Scaled COMM Advantage: **+10.9% Win Rate Advantage**, **+17.6 Reward Advantage**.
+  - Seed 42: $+18.7\%$ win rate advantage (47.0% vs. 28.3%).
+  - Seed 101: $+17.7\%$ win rate advantage (48.0% vs. 30.3%).
+- Tabula-Rasa MARL Failure: `EMERGENT_LONG` collapsed to **6.0% Win Rate**, **41.0% Loss Rate**, **-75.00 Reward**. Without BC imitation, decentralized agents wander aimlessly and cannot discover coordinated combat.
+
+---
+
 ## Phase 6: Visualizer Verification, Documentation, and Final Readiness
 
 ### 6.1 Visualizer Enhancements & Mode Verification
@@ -748,6 +776,8 @@ Tested **Best Learned COMM** (`artifacts/checkpoints/comm_best.pt`), **Oracle Me
 - Created comprehensive scientific report: `docs/RESULTS_v5.md`.
 - Drafted pull request description: `docs/PR_v5.md`.
 - Updated `README.md` with v5 findings, seed banks, and reproduction instructions.
+- Archived all checkpoints and models to external backup directory `../STRATOS-checkpoints-backup-v5/`.
+
 
 
 
