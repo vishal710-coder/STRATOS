@@ -70,27 +70,41 @@ graph TD
 ## 3. Quickstart & Interactive Demonstration
 
 ### 1. Launch Interactive Visualizer Demo
-Run the interactive visualizer with live tactical telemetry, unit auras, and floating communication tokens:
+Run the interactive visualizer with live tactical telemetry, unit auras, and floating communication tokens using built-in reference policies:
 ```bash
-python scripts/run_demo.py --checkpoint artifacts/checkpoints/comm_best.pt
+python scripts/run_demo.py
+```
+Or specify a custom trained checkpoint:
+```bash
+python scripts/run_demo.py --checkpoint path/to/your/checkpoint.pt
 ```
 
 - **Interactive Hotkeys**:
   - `[1]`: Switch to **Oracle Messenger** policy (privileged heuristic communication).
   - `[2]`: Switch to **Silent Reference** policy (no communication control).
-  - `[3]`: Switch to **Learned COMM** policy (`artifacts/checkpoints/comm_best.pt`).
-  - `[4]`: Switch to **Independent NO_COMM** policy (`artifacts/checkpoints/no_comm_bc_student.pt`).
+  - `[3]`: Switch to **Learned COMM** policy (when custom checkpoint is provided).
+  - `[4]`: Switch to **Independent NO_COMM** policy (when custom checkpoint is provided).
   - `[O]`: Cycle opponent strategy (`aggressive` $\to$ `defensive` $\to$ `resource_focused`).
   - `[R]`: Reset episode with a new seed.
   - `[SPACE]`: Pause / unpause simulation.
 
-### 2. Run Comprehensive v5 Evaluation Suite (Seeds 7000–7099)
-Run the full 300-episode-per-cell benchmark across all 16 conditions:
+### 2. Train Multi-Agent Communication Policies
+Train discrete communication policies or baselines:
+```bash
+# Train full multi-agent PPO policy
+python scripts/train_model.py
+
+# Or run scaled training pipeline
+python scripts/run_phase3_scaled_training.py
+```
+
+### 3. Run Comprehensive Evaluation Suite (Seeds 7000–7099)
+Run the 300-episode-per-cell benchmark across all evaluation conditions:
 ```bash
 python scripts/run_phase5_final_evaluation.py
 ```
 
-### 3. Run Automated Unit & Integration Tests
+### 4. Run Automated Unit & Integration Tests
 ```bash
 pytest -q
 ```
@@ -104,12 +118,12 @@ Evaluated across 100 fresh, never-before-seen seeds (`7000`–`7099`) $\times$ 3
 | Condition / Model | Action Mode | Win Rate (95% CI) | Draw Rate | Loss Rate | Mean Cumulative Team Reward |
 |---|---|---|---|---|---|
 | **Oracle Reference Policy** | Deterministic | **56.3%** [50.3%, 62.0%] | 30.7% | 13.0% | **+131.70** [+110.1, +151.7] |
-| **Best Learned COMM (`comm_best.pt`)** | Greedy | **56.3%** [51.0%, 61.7%] | 29.3% | 14.3% | **+131.00** [+109.8, +150.9] |
+| **Best Learned COMM Policy** | Greedy | **56.3%** [51.0%, 61.7%] | 29.3% | 14.3% | **+131.00** [+109.8, +150.9] |
 | **COMM Cluster Mean (3 Seeds, 100k)** | Greedy | **56.0%** [`55.3%`, `56.3%`] | 29.8% | 14.2% | **+130.03** [`+128.9`, `+131.0`] |
 | **NO_COMM Cluster Mean (3 Seeds, 100k)** | Greedy | **40.9%** [`35.0%`, `48.0%`] | 24.3% | 34.8% | **+42.67** [`+27.1`, `+63.6`] |
 | **COMM_LONG Scaled Cluster Mean (1.0M)** | Greedy | **45.3%** [`41.0%`, `48.0%`] | 43.3% | 11.4% | **+93.22** [`+66.3`, `+111.5`] |
 | **NO_COMM_LONG Scaled Cluster Mean (1.0M)**| Greedy | **34.4%** [`28.3%`, `44.7%`] | 60.0% | 5.6% | **+75.62** [`+59.6`, `+98.1`] |
-| **NO_COMM BC Student (`no_comm_bc_student.pt`)** | Greedy | 19.7% [15.3%, 24.3%] | 64.3% | 16.0% | **-0.54** [-17.2, +16.0] |
+| **NO_COMM BC Student Policy** | Greedy | 19.7% [15.3%, 24.3%] | 64.3% | 16.0% | **-0.54** [-17.2, +16.0] |
 | **Silent Reference Policy** | Rule-Based | 18.0% [13.7%, 22.7%] | 66.3% | 15.7% | **-5.39** [-20.7, +10.9] |
 | **Scripted Heuristic Baseline** | Heuristic | 9.0% [6.0%, 12.3%] | 73.0% | 18.0% | **-35.41** [-51.2, -18.7] |
 | **Random Action Baseline** | Uniform Random | 8.3% [5.3%, 11.7%] | 84.7% | 7.0% | **-10.02** [-20.5, +0.3] |
@@ -143,13 +157,15 @@ To ensure unbiased evaluation and prevent data contamination, seed allocations a
 
 ---
 
-## 7. Artifacts & Detailed Reports
+## 7. Artifacts & Research Datasets
 
-- `docs/RESULTS_v5.md`: Detailed scientific report with per-opponent breakdowns, failure analysis, robustness curves, and information theoretic metrics.
-- `docs/WORKLOG.md`: Complete phase-by-phase engineering worklog with time plans, empirical decisions, and diagnostic logs.
-- `docs/PR_v5.md`: Comprehensive pull request description answering the 4 core scientific questions.
-- `artifacts/experiments/phase5_final_evaluation.json`: Machine-readable results across all 16 evaluation conditions on fresh seeds.
-- `artifacts/experiments/phase4_robustness_summary.json`: Complete 8-perturbation robustness testing dataset.
+- `artifacts/experiments/PROTOCOL.md`: Complete seed bank partitioning, scientific hygiene protocol, and evaluation rules.
+- `artifacts/experiments/comm_vs_nocomm_performance.png`: Empirical win rate and cumulative team reward distributions.
+- `artifacts/experiments/token_distribution_and_mi.png`: Token communication distributions and mutual information metrics.
+- `artifacts/experiments/ablation_causality.png`: Causal message channel ablation degradation curves.
+- `artifacts/experiments/training_health_curves.png`: Multi-agent policy loss, value loss, and entropy dynamics.
+- `artifacts/experiments/phase5_final_evaluation.json`: Machine-readable evaluation dataset across all 16 experimental conditions on fresh seeds.
+- `artifacts/experiments/phase4_robustness_summary.json`: Complete 8-perturbation communication channel robustness dataset.
 - `artifacts/experiments/phase1_failure_analysis.json`: Quantitative failure mode classification dataset.
 
 ---
