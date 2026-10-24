@@ -629,6 +629,59 @@ A rigorous diagnostic audit of the v4 experimental setup revealed key confoundin
   - **RETAIN `artifacts/checkpoints/comm_bc_student.pt`** and `no_comm_bc_student.pt` for all downstream training, fine-tuning, and evaluation.
   - All default environment configurations remain strictly invariant (`hq_regen=False`, `supply_broadcast=False`).
 
+---
+
+## Phase 4: Robustness Testing Suite (Validation Seeds 1000–1049, 150 Episodes per Condition)
+
+### 4.1 Perturbation Suite & Experimental Design
+Tested **Best Learned COMM** (`artifacts/checkpoints/comm_best.pt`), **Oracle Messenger**, and **NO_COMM Baseline** (`artifacts/checkpoints/no_comm_bc_student.pt`) under 8 communication and operational perturbations across all 50 validation seeds (`1000`–`1049`) $\times$ 3 opponents (150 episodes per perturbation condition):
+1. **Intact Baseline**: Normal operation (1-step message delay, 0% loss, 0% noise).
+2. **Message Loss ($p \in \{0.10, 0.30, 0.50\}$)**: Transmitted tokens randomly dropped and replaced with `token 0` (silence).
+3. **Message Delay (2 steps)**: Delivered tokens delayed by 2 simulation steps instead of 1 step via FIFO queue.
+4. **Token Noise (10%)**: 10% of transmitted tokens randomly corrupted to uniform random values $\in [0, 8]$.
+5. **Forced Scout Death (@ Step 50 / Step 100)**: Friendly Attack unit instantly eliminated at step 50 (early game) or step 100 (mid game).
+
+### 4.2 Comprehensive Empirical Robustness Matrix
+
+| Model | Perturbation Condition | Win Rate | Draw Rate | Loss Rate | Mean Cumulative Reward | Degradation from Intact |
+|---|---|---|---|---|---|---|
+| **Best COMM** | **Intact Baseline** | **48.7%** | 36.0% | 15.3% | **+110.1** | Baseline |
+| | Message Loss 10% | 45.3% | 38.0% | 16.7% | +95.2 | -3.4% win (-14.9 rew) |
+| | Message Loss 30% | 33.3% | 46.7% | 20.0% | +51.3 | -15.4% win (-58.8 rew) |
+| | Message Loss 50% | 21.3% | 58.0% | 20.7% | +9.9 | -27.4% win (-100.2 rew) |
+| | Message Delay 2 Steps | **48.7%** | 36.7% | 14.7% | **+109.8** | **-0.0% win (-0.3 rew)** |
+| | Token Noise 10% | 45.3% | 38.0% | 16.7% | +97.0 | -3.4% win (-13.1 rew) |
+| | Forced Scout Death @ 50 | 14.7% | 30.0% | 55.3% | -70.1 | -34.0% win (-180.2 rew) |
+| | Forced Scout Death @ 100| 25.3% | 30.0% | 44.7% | -14.3 | -23.4% win (-124.4 rew) |
+| **Oracle** | **Intact Baseline** | **51.3%** | 31.3% | 17.3% | **+112.7** | Baseline |
+| | Message Loss 10% | 50.7% | 32.7% | 16.7% | +111.7 | -0.6% win (-1.0 rew) |
+| | Message Loss 30% | 51.3% | 31.3% | 17.3% | +112.9 | +0.0% win (+0.2 rew) |
+| | Message Loss 50% | 48.7% | 34.7% | 16.7% | +106.2 | -2.6% win (-6.5 rew) |
+| | Message Delay 2 Steps | 47.3% | 36.7% | 16.0% | +103.1 | -4.0% win (-9.6 rew) |
+| | Token Noise 10% | 49.3% | 35.3% | 15.3% | +109.5 | -2.0% win (-3.2 rew) |
+| | Forced Scout Death @ 50 | 13.3% | 35.3% | 51.3% | -70.2 | -38.0% win (-182.9 rew) |
+| | Forced Scout Death @ 100| 24.7% | 30.0% | 45.3% | -17.2 | -26.6% win (-129.9 rew) |
+| **NO_COMM**| **Intact Baseline** | **18.7%** | 64.7% | 16.7% | **-1.6** | Baseline |
+| | Message Loss (all p) | 18.7% | 64.7% | 16.7% | -1.6 | 0.0% (immune to comm loss) |
+| | Message Delay 2 Steps | 18.7% | 64.7% | 16.7% | -1.6 | 0.0% |
+| | Token Noise 10% | 18.7% | 64.7% | 16.7% | -1.6 | 0.0% |
+| | Forced Scout Death @ 50 | 0.0% | 26.7% | 73.3% | -136.9 | -18.7% win (-135.3 rew) |
+| | Forced Scout Death @ 100| 0.0% | 49.3% | 50.7% | -104.4 | -18.7% win (-102.8 rew) |
+
+### 4.3 Diagnostic Insights on Robustness
+1. **Graceful Degradation Under Packet Loss (No Fragile Collapse)**:
+   - At 10% message loss, Best_COMM win rate drops only from **48.7% to 45.3%** (-3.4%), and at 10% token noise drops only to **45.3%**.
+   - The policy does not suffer from extreme brittle collapse because Attack transmits the weak lane token repetitively every step; transient packet drops are masked by subsequent step transmissions.
+   - At 30% and 50% packet drop, win rate smoothly trends downward toward the uncoordinated regime (33.3% and 21.3%), showing that receiver units make proportional use of transmitted tokens.
+2. **Complete Invariance to 2-Step Delay**:
+   - Best COMM achieved **48.7% win rate** under a 2-step communication delay (identical to intact 48.7%).
+   - Because the target weak generator is stationary, a 1-step lag in token arrival has zero detrimental effect on squad lane convergence.
+3. **Catastrophic Impact of Early Scout Death**:
+   - Killing the scout at step 50 causes Best_COMM win rate to plunge to **14.7%** and loss rate to spike to **55.3%** (matching Oracle's 13.3% win rate and 51.3% loss rate).
+   - This proves that the scout's physical combat and early scouting role is irreplaceable. If scout survives to step 100, the team already knows the weak lane and has begun siege, preserving a 25.3% win rate.
+   - For NO_COMM, losing the scout at step 50 or 100 results in a **0.0% win rate** and up to 73.3% losses.
+
+
 
 
 
