@@ -146,18 +146,21 @@ class BattlefieldRenderer:
         """Resolve best available checkpoint path for condition."""
         if cond == "comm":
             candidates = [
+                "artifacts/checkpoints/comm_best.pt",
+                "artifacts/checkpoints/comm_bc_student.pt",
+                "artifacts/checkpoints/v4_finetuned/comm_s101.pt",
+                "artifacts/checkpoints/v4_finetuned/comm_s42.pt",
+                "artifacts/checkpoints/v4_finetuned/comm_s202_step_75000.pt",
                 "artifacts/checkpoints/v3_resumed/comm_s101.pt",
-                "artifacts/checkpoints/v3_sanity/comm_s42.pt",
-                "artifacts/checkpoints/v3_resumed/comm_s42.pt",
                 "artifacts/checkpoints/stratos_policy_comm_best.pt",
-                "artifacts/checkpoints/stratos_policy_comm_seed42.pt",
             ]
         else:
             candidates = [
+                "artifacts/checkpoints/v4_finetuned/no_comm_s42_step_75000.pt",
+                "artifacts/checkpoints/v4_finetuned/no_comm_s101_step_75000.pt",
+                "artifacts/checkpoints/v4_finetuned/no_comm_s202_step_75000.pt",
+                "artifacts/checkpoints/v4_finetuned/no_comm_s42.pt",
                 "artifacts/checkpoints/v3_resumed/no_comm_s101.pt",
-                "artifacts/checkpoints/v3_sanity/no_comm_s101.pt",
-                "artifacts/checkpoints/v3_resumed/no_comm_s202.pt",
-                "artifacts/checkpoints/stratos_policy_nocomm_seed101.pt",
             ]
         for c in candidates:
             if Path(c).exists():
@@ -166,27 +169,36 @@ class BattlefieldRenderer:
 
     def _load_demo_policies(self) -> None:
         """Load trained neural policies if checkpoints exist."""
-        # Load COMM policy
-        if self.comm_ckpt_path and Path(self.comm_ckpt_path).exists():
-            try:
-                p, meta = load_checkpoint(self.comm_ckpt_path, device="cpu")
-                self.comm_policy = p
-                self.checkpoint_warnings["comm"] = None
-            except Exception as e:
-                self.checkpoint_warnings["comm"] = f"Failed to load COMM checkpoint: {e}"
-        else:
-            self.checkpoint_warnings["comm"] = f"COMM checkpoint not found ({self.comm_ckpt_path or 'none'})"
+        # Check if caller passed a loaded policy instance
+        if self.policy is not None:
+            if getattr(self.policy, "has_comm_head", True):
+                self.comm_policy = self.policy
+            else:
+                self.nocomm_policy = self.policy
 
-        # Load NO_COMM policy
-        if self.nocomm_ckpt_path and Path(self.nocomm_ckpt_path).exists():
-            try:
-                p, meta = load_checkpoint(self.nocomm_ckpt_path, device="cpu")
-                self.nocomm_policy = p
-                self.checkpoint_warnings["no_comm"] = None
-            except Exception as e:
-                self.checkpoint_warnings["no_comm"] = f"Failed to load NO_COMM checkpoint: {e}"
-        else:
-            self.checkpoint_warnings["no_comm"] = f"NO_COMM checkpoint not found ({self.nocomm_ckpt_path or 'none'})"
+        # Load COMM policy from disk if not yet assigned
+        if self.comm_policy is None:
+            if self.comm_ckpt_path and Path(self.comm_ckpt_path).exists():
+                try:
+                    p, meta = load_checkpoint(self.comm_ckpt_path, device="cpu")
+                    self.comm_policy = p
+                    self.checkpoint_warnings["comm"] = None
+                except Exception as e:
+                    self.checkpoint_warnings["comm"] = f"Failed to load COMM checkpoint: {e}"
+            else:
+                self.checkpoint_warnings["comm"] = f"COMM checkpoint not found ({self.comm_ckpt_path or 'none'})"
+
+        # Load NO_COMM policy from disk if not yet assigned
+        if self.nocomm_policy is None:
+            if self.nocomm_ckpt_path and Path(self.nocomm_ckpt_path).exists():
+                try:
+                    p, meta = load_checkpoint(self.nocomm_ckpt_path, device="cpu")
+                    self.nocomm_policy = p
+                    self.checkpoint_warnings["no_comm"] = None
+                except Exception as e:
+                    self.checkpoint_warnings["no_comm"] = f"Failed to load NO_COMM checkpoint: {e}"
+            else:
+                self.checkpoint_warnings["no_comm"] = f"NO_COMM checkpoint not found ({self.nocomm_ckpt_path or 'none'})"
 
     def set_demo_mode(self, mode: str, reset_env: bool = True) -> None:
         """Switch demo mode and configure environment."""
@@ -205,7 +217,7 @@ class BattlefieldRenderer:
                 self.env.coordinator.coordination_mode = "independent"
 
         if reset_env:
-            self.env.reset(seed=self.current_seed)
+            self.current_obs, _ = self.env.reset(seed=self.current_seed)
             if hasattr(self.oracle_policy, "reset"):
                 self.oracle_policy.reset()
             self.last_sent_tokens = {"commander": 0, "defense": 0, "attack": 0}
@@ -229,7 +241,21 @@ class BattlefieldRenderer:
 
         elif self.demo_mode == "comm":
             if self.comm_policy is not None:
-                obs_arr = np.array([obs[a] for a in self.env.possible_agents])
+                obs_arr = np.array([obs[a] for a in self.env.possible_agents], dtype=np.float32)
+                # Adapt observation dimension if environment and checkpoint vary in role ID or comm slots
+                if obs_arr.shape[-1] != self.comm_policy.obs_dim:
+                    if obs_arr.shape[-1] == 70 and self.comm_policy.obs_dim == 73:
+                        # Append 3-dim one-hot role identification
+                        role_ones = np.eye(3, dtype=np.float32)
+                        obs_arr = np.concatenate([obs_arr, role_ones], axis=-1)
+                    elif obs_arr.shape[-1] == 52 and self.comm_policy.obs_dim == 73:
+                        # Pad 18 comm slots and 3 role slots
+                        pad = np.zeros((3, 21), dtype=np.float32)
+                        pad[:, -3:] = np.eye(3, dtype=np.float32)
+                        obs_arr = np.concatenate([obs_arr, pad], axis=-1)
+                    elif obs_arr.shape[-1] > self.comm_policy.obs_dim:
+                        obs_arr = obs_arr[..., :self.comm_policy.obs_dim]
+
                 obs_t = torch.as_tensor(obs_arr, dtype=torch.float32)
                 with torch.no_grad():
                     a_t, m_t, _, _, _, _ = self.comm_policy.get_actions_and_values(obs_t, deterministic=True)
@@ -245,7 +271,14 @@ class BattlefieldRenderer:
 
         elif self.demo_mode == "no_comm":
             if self.nocomm_policy is not None:
-                obs_arr = np.array([obs[a] for a in self.env.possible_agents])
+                obs_arr = np.array([obs[a] for a in self.env.possible_agents], dtype=np.float32)
+                if obs_arr.shape[-1] != self.nocomm_policy.obs_dim:
+                    if obs_arr.shape[-1] == 70 and self.nocomm_policy.obs_dim == 73:
+                        role_ones = np.eye(3, dtype=np.float32)
+                        obs_arr = np.concatenate([obs_arr, role_ones], axis=-1)
+                    elif obs_arr.shape[-1] > self.nocomm_policy.obs_dim:
+                        obs_arr = obs_arr[..., :self.nocomm_policy.obs_dim]
+
                 obs_t = torch.as_tensor(obs_arr, dtype=torch.float32)
                 with torch.no_grad():
                     a_t, _, _, _ = self.nocomm_policy.get_action_and_value(obs_t, deterministic=True)
@@ -685,8 +718,11 @@ class BattlefieldRenderer:
 
             # Communication Sent Token
             t = self.last_sent_tokens.get(aid, 0)
-            t_str = decode_token_label(t)
-            t_txt = self.font_tiny.render(f"Comm: T{t} ({t_str})", True, COLOR_TEXT_GOLD if t > 0 else (120, 135, 155))
+            if self.demo_mode == "comm":
+                comm_display = f"Comm: Raw Token {t}" if t > 0 else "Comm: Token 0 (Silent)"
+            else:
+                comm_display = f"Comm: T{t} ({decode_token_label(t)})"
+            t_txt = self.font_tiny.render(comm_display, True, COLOR_TEXT_GOLD if t > 0 else (120, 135, 155))
             self.screen.blit(t_txt, (panel_x + 20, y + 60))
 
             y += 90
@@ -702,7 +738,7 @@ class BattlefieldRenderer:
         self.screen.blit(self.font_tiny.render("      [SPACE] Pause | [UP/DN] Speed", True, COLOR_TEXT_DIM), (panel_x + 18, y + 64))
 
     def _draw_bottom_ticker(self, state: Any) -> None:
-        """Bottom communication message stream with decoded token meanings."""
+        """Bottom communication message stream with raw token IDs for learned modes."""
         ticker_y = 40 + int(self.map_h)
         ticker_h = self.height - ticker_y
         ticker_rect = pygame.Rect(0, ticker_y, self.width, ticker_h)
@@ -717,11 +753,19 @@ class BattlefieldRenderer:
             t_def = self.last_sent_tokens.get("defense", 0)
             t_cmd = self.last_sent_tokens.get("commander", 0)
 
-            msg_str = (
-                f"ATTACK: T{t_atk} [{decode_token_label(t_atk)}]  |  "
-                f"DEFENSE: T{t_def} [{decode_token_label(t_def)}]  |  "
-                f"COMMANDER: T{t_cmd} [{decode_token_label(t_cmd)}]"
-            )
+            if self.demo_mode == "comm":
+                # For learned modes, show raw token IDs instead of decoding into lane names
+                msg_str = (
+                    f"ATTACK: [Token ID {t_atk}]  |  "
+                    f"DEFENSE: [Token ID {t_def}]  |  "
+                    f"COMMANDER: [Token ID {t_cmd}]"
+                )
+            else:
+                msg_str = (
+                    f"ATTACK: T{t_atk} [{decode_token_label(t_atk)}]  |  "
+                    f"DEFENSE: T{t_def} [{decode_token_label(t_def)}]  |  "
+                    f"COMMANDER: T{t_cmd} [{decode_token_label(t_cmd)}]"
+                )
             color = COLOR_TEXT_MAIN if (t_atk > 0 or t_def > 0) else COLOR_TEXT_DIM
             stream = self.font_body.render(msg_str, True, color)
             self.screen.blit(stream, (180, ticker_y + 16))
@@ -787,8 +831,7 @@ class BattlefieldRenderer:
 
     def run_episode(self) -> None:
         """Run interactive presentation episode loop with full mode toggling."""
-        self.env.reset(seed=self.current_seed)
-        obs, _ = self.env.reset(seed=self.current_seed)
+        self.current_obs, _ = self.env.reset(seed=self.current_seed)
         running = True
 
         while running:
@@ -796,10 +839,10 @@ class BattlefieldRenderer:
             if not running:
                 break
 
-            if not self.paused and not self.match_finished:
-                actions = self.select_actions(obs)
+            if not self.paused and not self.match_finished and self.current_obs is not None:
+                actions = self.select_actions(self.current_obs)
                 next_obs, rewards, terminations, truncations, infos = self.env.step(actions)
-                obs = next_obs
+                self.current_obs = next_obs
 
                 if any(terminations.values()) or any(truncations.values()):
                     self.record_match_result(self.env.state.winner, self.env.state.win_type)

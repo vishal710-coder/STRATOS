@@ -25,6 +25,12 @@ def train_stratos(
     coordination_mode: str = "coordinated",
     opponent_strategy: str = "aggressive",
     resume_checkpoint: Optional[str] = None,
+    init_checkpoint: Optional[str] = None,
+    bc_checkpoint: Optional[str] = None,
+    bc_kl_coef: float = 0.0,
+    lr: Optional[float] = None,
+    message_cost: Optional[float] = None,
+    enable_team_cohesion: bool = False,
     output_checkpoint_path: Optional[str] = None,
     history_csv_path: Optional[str] = None,
     history_json_path: Optional[str] = None,
@@ -72,7 +78,13 @@ def train_stratos(
         aux_loss_coef = float(cfg.get("hyperparameters", {}).get("aux_pred_loss_coef", 0.0))
     else:
         aux_loss_coef = float(aux_loss_coef)
-    msg_cost = float(cfg.get("training", {}).get("message_cost", 0.0))
+
+    if message_cost is not None:
+        msg_cost = float(message_cost)
+    else:
+        msg_cost = float(cfg.get("training", {}).get("message_cost", 0.0))
+
+    chosen_lr = float(lr) if lr is not None else float(cfg["hyperparameters"]["learning_rate"])
 
     # Initialize Environment
     env = StrategyGameEnv(
@@ -81,6 +93,7 @@ def train_stratos(
         opponent_strategy=current_opponent,
         include_role_id=include_role_id,
         message_cost=msg_cost,
+        enable_team_cohesion=enable_team_cohesion,
     )
 
     num_agents = len(env.possible_agents)
@@ -96,21 +109,37 @@ def train_stratos(
         has_comm_head=has_comm_head,
         has_aux_head=(has_comm_head and (aux_loss_coef > 0.0)),
     ).to(device)
+
+    # Optional BC policy for KL divergence penalty
+    bc_pol = None
+    if bc_checkpoint and Path(bc_checkpoint).exists():
+        if verbose:
+            print(f"[STRATOS Training] Loading BC anchor policy from: {bc_checkpoint}")
+        bc_pol, _ = load_checkpoint(bc_checkpoint, device=str(device))
+        bc_pol.eval()
+
     trainer = PPOTrainer(
         policy=policy,
-        lr=float(cfg["hyperparameters"]["learning_rate"]),
+        lr=chosen_lr,
         clip_eps=float(cfg["hyperparameters"]["clip_eps"]),
         value_coef=float(cfg["hyperparameters"]["value_loss_coef"]),
         entropy_coef=float(cfg["hyperparameters"]["entropy_coef"]),
         comm_entropy_coef=comm_entropy_coef,
         aux_loss_coef=aux_loss_coef,
         max_grad_norm=float(cfg["hyperparameters"]["max_grad_norm"]),
+        bc_policy=bc_pol,
+        bc_kl_coef=bc_kl_coef,
         device=str(device),
     )
 
     starting_step = 0
     starting_episodes = 0
-    if resume_checkpoint and Path(resume_checkpoint).exists():
+    if init_checkpoint and Path(init_checkpoint).exists():
+        if verbose:
+            print(f"[STRATOS Training] Initializing policy weights from: {init_checkpoint}")
+        policy, _ = load_checkpoint(init_checkpoint, policy=policy, device=str(device))
+        policy.train()
+    elif resume_checkpoint and Path(resume_checkpoint).exists():
         if verbose:
             print(f"[STRATOS Training] Resuming from checkpoint: {resume_checkpoint}")
         policy, meta = load_checkpoint(resume_checkpoint, policy=policy, optimizer=trainer.optimizer, device=str(device))
@@ -267,12 +296,13 @@ def train_stratos(
 
         buffer.compute_returns_and_advantages(next_value, next_done)
 
-        # LR decay & Entropy annealing
+        # LR decay & Entropy annealing & BC KL penalty decay
         progress = min(1.0, current_step / max(1, total_timesteps))
-        init_lr = float(cfg["hyperparameters"]["learning_rate"])
-        trainer.set_learning_rate(init_lr * max(0.01, 1.0 - progress))
+        trainer.set_learning_rate(chosen_lr * max(0.01, 1.0 - progress))
         # Anneal entropy: 0.02 down to 0.005
         trainer.set_entropy_coef(0.02 * (1.0 - progress) + 0.005 * progress)
+        if bc_pol is not None and bc_kl_coef > 0.0:
+            trainer.set_bc_kl_coef(bc_kl_coef * max(0.0, 1.0 - progress))
 
         update_metrics = trainer.update(
             buffer=buffer,

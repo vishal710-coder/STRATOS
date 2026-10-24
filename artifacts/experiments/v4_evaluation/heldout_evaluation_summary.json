@@ -1,0 +1,1151 @@
+{
+  "bc_student_greedy": {
+    "condition_id": "bc_student_greedy",
+    "checkpoint": "artifacts/checkpoints/comm_bc_student.pt",
+    "policy_type": "neural_comm",
+    "deterministic": true,
+    "ablation": "none",
+    "win_rate": 54.0,
+    "draw_rate": 35.333333333333336,
+    "loss_rate": 10.666666666666668,
+    "mean_reward": 137.58981302516696,
+    "std_reward": 178.84708190952298,
+    "behavior": {
+      "hq_commander_pct": 14.8,
+      "hq_defense_pct": 12.0,
+      "hq_attack_pct": 15.0,
+      "steps_to_first_engagement": 89.8,
+      "units_alive_step_300": 2.13,
+      "mean_combat_group_dist": 151.7
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 7,
+      "role_token_frequencies": {
+        "commander": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          0.8527,
+          0.0,
+          0.0,
+          0.0,
+          0.057,
+          0.0515,
+          0.0388,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          0.0,
+          0.3855,
+          0.3067,
+          0.3077,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 1.5763,
+      "mi_defense_wave_flank": 0.2308
+    }
+  },
+  "bc_student_sampled": {
+    "condition_id": "bc_student_sampled",
+    "checkpoint": "artifacts/checkpoints/comm_bc_student.pt",
+    "policy_type": "neural_comm",
+    "deterministic": false,
+    "ablation": "none",
+    "win_rate": 55.333333333333336,
+    "draw_rate": 32.666666666666664,
+    "loss_rate": 12.0,
+    "mean_reward": 141.40420328097895,
+    "std_reward": 179.35089498873535,
+    "behavior": {
+      "hq_commander_pct": 14.1,
+      "hq_defense_pct": 12.0,
+      "hq_attack_pct": 14.6,
+      "steps_to_first_engagement": 89.8,
+      "units_alive_step_300": 2.11,
+      "mean_combat_group_dist": 147.4
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 7,
+      "role_token_frequencies": {
+        "commander": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          0.8523,
+          0.0,
+          0.0,
+          0.0,
+          0.0572,
+          0.0517,
+          0.0388,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          0.0,
+          0.3863,
+          0.3059,
+          0.3078,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 1.5761,
+      "mi_defense_wave_flank": 0.2314
+    }
+  },
+  "comm_ppo_s42_greedy": {
+    "condition_id": "comm_ppo_s42_greedy",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s42.pt",
+    "policy_type": "neural_comm",
+    "deterministic": true,
+    "ablation": "none",
+    "win_rate": 53.333333333333336,
+    "draw_rate": 36.0,
+    "loss_rate": 10.666666666666668,
+    "mean_reward": 135.2652675109543,
+    "std_reward": 178.33709339501698,
+    "behavior": {
+      "hq_commander_pct": 14.6,
+      "hq_defense_pct": 12.1,
+      "hq_attack_pct": 13.8,
+      "steps_to_first_engagement": 89.8,
+      "units_alive_step_300": 2.11,
+      "mean_combat_group_dist": 148.9
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 7,
+      "role_token_frequencies": {
+        "commander": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          0.8536,
+          0.0,
+          0.0,
+          0.0,
+          0.057,
+          0.0513,
+          0.0381,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          0.0001,
+          0.3858,
+          0.3034,
+          0.3108,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 1.5726,
+      "mi_defense_wave_flank": 0.2293
+    }
+  },
+  "comm_ppo_s42_sampled": {
+    "condition_id": "comm_ppo_s42_sampled",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s42.pt",
+    "policy_type": "neural_comm",
+    "deterministic": false,
+    "ablation": "none",
+    "win_rate": 54.666666666666664,
+    "draw_rate": 35.333333333333336,
+    "loss_rate": 10.0,
+    "mean_reward": 139.0164046010033,
+    "std_reward": 177.10104537890325,
+    "behavior": {
+      "hq_commander_pct": 14.6,
+      "hq_defense_pct": 11.8,
+      "hq_attack_pct": 14.0,
+      "steps_to_first_engagement": 90.0,
+      "units_alive_step_300": 2.13,
+      "mean_combat_group_dist": 148.9
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 7,
+      "role_token_frequencies": {
+        "commander": [
+          0.9998,
+          0.0001,
+          0.0,
+          0.0,
+          0.0001,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          0.8534,
+          0.0,
+          0.0,
+          0.0,
+          0.0569,
+          0.0517,
+          0.0379,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          0.0001,
+          0.3891,
+          0.296,
+          0.3148,
+          0.0001,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 1.5711,
+      "mi_defense_wave_flank": 0.2285
+    }
+  },
+  "comm_ppo_s101_greedy": {
+    "condition_id": "comm_ppo_s101_greedy",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s101.pt",
+    "policy_type": "neural_comm",
+    "deterministic": true,
+    "ablation": "none",
+    "win_rate": 56.00000000000001,
+    "draw_rate": 31.333333333333336,
+    "loss_rate": 12.666666666666668,
+    "mean_reward": 141.6169630685253,
+    "std_reward": 181.88130074055812,
+    "behavior": {
+      "hq_commander_pct": 14.2,
+      "hq_defense_pct": 12.0,
+      "hq_attack_pct": 13.6,
+      "steps_to_first_engagement": 89.8,
+      "units_alive_step_300": 2.09,
+      "mean_combat_group_dist": 147.1
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 7,
+      "role_token_frequencies": {
+        "commander": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          0.8521,
+          0.0,
+          0.0,
+          0.0,
+          0.0574,
+          0.0519,
+          0.0386,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          0.0,
+          0.3889,
+          0.3025,
+          0.3087,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 1.5695,
+      "mi_defense_wave_flank": 0.2316
+    }
+  },
+  "comm_ppo_s101_sampled": {
+    "condition_id": "comm_ppo_s101_sampled",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s101.pt",
+    "policy_type": "neural_comm",
+    "deterministic": false,
+    "ablation": "none",
+    "win_rate": 56.666666666666664,
+    "draw_rate": 31.333333333333336,
+    "loss_rate": 12.0,
+    "mean_reward": 143.3075390297743,
+    "std_reward": 178.18650011508288,
+    "behavior": {
+      "hq_commander_pct": 14.4,
+      "hq_defense_pct": 11.8,
+      "hq_attack_pct": 13.6,
+      "steps_to_first_engagement": 89.9,
+      "units_alive_step_300": 2.11,
+      "mean_combat_group_dist": 147.3
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 7,
+      "role_token_frequencies": {
+        "commander": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          0.8518,
+          0.0,
+          0.0,
+          0.0,
+          0.0575,
+          0.0518,
+          0.0389,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          0.0,
+          0.3862,
+          0.2982,
+          0.3155,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 1.5711,
+      "mi_defense_wave_flank": 0.2297
+    }
+  },
+  "comm_ppo_s202_greedy": {
+    "condition_id": "comm_ppo_s202_greedy",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s202_step_75000.pt",
+    "policy_type": "neural_comm",
+    "deterministic": true,
+    "ablation": "none",
+    "win_rate": 54.666666666666664,
+    "draw_rate": 32.666666666666664,
+    "loss_rate": 12.666666666666668,
+    "mean_reward": 137.48074789561718,
+    "std_reward": 180.46471111272353,
+    "behavior": {
+      "hq_commander_pct": 14.5,
+      "hq_defense_pct": 12.1,
+      "hq_attack_pct": 14.6,
+      "steps_to_first_engagement": 89.8,
+      "units_alive_step_300": 2.1,
+      "mean_combat_group_dist": 147.8
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 7,
+      "role_token_frequencies": {
+        "commander": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          0.8524,
+          0.0,
+          0.0,
+          0.0,
+          0.0573,
+          0.0518,
+          0.0386,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          0.0,
+          0.3883,
+          0.3009,
+          0.3109,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 1.5722,
+      "mi_defense_wave_flank": 0.2312
+    }
+  },
+  "comm_ppo_s202_sampled": {
+    "condition_id": "comm_ppo_s202_sampled",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s202_step_75000.pt",
+    "policy_type": "neural_comm",
+    "deterministic": false,
+    "ablation": "none",
+    "win_rate": 54.0,
+    "draw_rate": 34.66666666666667,
+    "loss_rate": 11.333333333333332,
+    "mean_reward": 137.105254347964,
+    "std_reward": 180.0834654437641,
+    "behavior": {
+      "hq_commander_pct": 14.7,
+      "hq_defense_pct": 11.9,
+      "hq_attack_pct": 14.1,
+      "steps_to_first_engagement": 90.0,
+      "units_alive_step_300": 2.1,
+      "mean_combat_group_dist": 150.4
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 7,
+      "role_token_frequencies": {
+        "commander": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          0.8519,
+          0.0,
+          0.0,
+          0.0,
+          0.0574,
+          0.0517,
+          0.0389,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          0.0001,
+          0.3887,
+          0.2992,
+          0.312,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 1.5714,
+      "mi_defense_wave_flank": 0.2311
+    }
+  },
+  "no_comm_s42_greedy": {
+    "condition_id": "no_comm_s42_greedy",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s42_step_75000.pt",
+    "policy_type": "neural_no_comm",
+    "deterministic": true,
+    "ablation": "none",
+    "win_rate": 42.0,
+    "draw_rate": 13.333333333333334,
+    "loss_rate": 44.666666666666664,
+    "mean_reward": 39.684450574493724,
+    "std_reward": 187.56318372166413,
+    "behavior": {
+      "hq_commander_pct": 15.7,
+      "hq_defense_pct": 9.0,
+      "hq_attack_pct": 12.2,
+      "steps_to_first_engagement": 81.1,
+      "units_alive_step_300": 0.93,
+      "mean_combat_group_dist": 124.1
+    },
+    "message_analysis": {}
+  },
+  "no_comm_s42_sampled": {
+    "condition_id": "no_comm_s42_sampled",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s42_step_75000.pt",
+    "policy_type": "neural_no_comm",
+    "deterministic": false,
+    "ablation": "none",
+    "win_rate": 27.333333333333332,
+    "draw_rate": 38.0,
+    "loss_rate": 34.66666666666667,
+    "mean_reward": 7.056524961749917,
+    "std_reward": 166.74629809843657,
+    "behavior": {
+      "hq_commander_pct": 17.5,
+      "hq_defense_pct": 13.0,
+      "hq_attack_pct": 12.7,
+      "steps_to_first_engagement": 98.6,
+      "units_alive_step_300": 1.03,
+      "mean_combat_group_dist": 140.0
+    },
+    "message_analysis": {}
+  },
+  "no_comm_s101_greedy": {
+    "condition_id": "no_comm_s101_greedy",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s101_step_75000.pt",
+    "policy_type": "neural_no_comm",
+    "deterministic": true,
+    "ablation": "none",
+    "win_rate": 32.666666666666664,
+    "draw_rate": 22.666666666666664,
+    "loss_rate": 44.666666666666664,
+    "mean_reward": 10.068162998878837,
+    "std_reward": 175.20068788703838,
+    "behavior": {
+      "hq_commander_pct": 15.2,
+      "hq_defense_pct": 9.2,
+      "hq_attack_pct": 13.2,
+      "steps_to_first_engagement": 83.6,
+      "units_alive_step_300": 0.83,
+      "mean_combat_group_dist": 130.0
+    },
+    "message_analysis": {}
+  },
+  "no_comm_s101_sampled": {
+    "condition_id": "no_comm_s101_sampled",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s101_step_75000.pt",
+    "policy_type": "neural_no_comm",
+    "deterministic": false,
+    "ablation": "none",
+    "win_rate": 29.333333333333332,
+    "draw_rate": 25.333333333333336,
+    "loss_rate": 45.33333333333333,
+    "mean_reward": 3.6654890150063695,
+    "std_reward": 171.14672854859208,
+    "behavior": {
+      "hq_commander_pct": 19.3,
+      "hq_defense_pct": 9.6,
+      "hq_attack_pct": 12.6,
+      "steps_to_first_engagement": 94.6,
+      "units_alive_step_300": 0.85,
+      "mean_combat_group_dist": 129.2
+    },
+    "message_analysis": {}
+  },
+  "no_comm_s202_greedy": {
+    "condition_id": "no_comm_s202_greedy",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s202_step_75000.pt",
+    "policy_type": "neural_no_comm",
+    "deterministic": true,
+    "ablation": "none",
+    "win_rate": 34.0,
+    "draw_rate": 28.000000000000004,
+    "loss_rate": 38.0,
+    "mean_reward": 22.622578399874357,
+    "std_reward": 178.93558891695363,
+    "behavior": {
+      "hq_commander_pct": 29.7,
+      "hq_defense_pct": 10.0,
+      "hq_attack_pct": 12.4,
+      "steps_to_first_engagement": 88.3,
+      "units_alive_step_300": 1.06,
+      "mean_combat_group_dist": 163.2
+    },
+    "message_analysis": {}
+  },
+  "no_comm_s202_sampled": {
+    "condition_id": "no_comm_s202_sampled",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s202_step_75000.pt",
+    "policy_type": "neural_no_comm",
+    "deterministic": false,
+    "ablation": "none",
+    "win_rate": 25.333333333333336,
+    "draw_rate": 44.0,
+    "loss_rate": 30.666666666666664,
+    "mean_reward": 1.5587849643832579,
+    "std_reward": 158.24850332708888,
+    "behavior": {
+      "hq_commander_pct": 21.1,
+      "hq_defense_pct": 11.4,
+      "hq_attack_pct": 13.0,
+      "steps_to_first_engagement": 98.8,
+      "units_alive_step_300": 1.07,
+      "mean_combat_group_dist": 176.1
+    },
+    "message_analysis": {}
+  },
+  "oracle_reference": {
+    "condition_id": "oracle_reference",
+    "checkpoint": "none",
+    "policy_type": "oracle",
+    "deterministic": true,
+    "ablation": "none",
+    "win_rate": 54.666666666666664,
+    "draw_rate": 32.666666666666664,
+    "loss_rate": 12.666666666666668,
+    "mean_reward": 137.73879876658697,
+    "std_reward": 179.46392537685492,
+    "behavior": {
+      "hq_commander_pct": 14.5,
+      "hq_defense_pct": 12.0,
+      "hq_attack_pct": 15.1,
+      "steps_to_first_engagement": 89.8,
+      "units_alive_step_300": 2.07,
+      "mean_combat_group_dist": 150.0
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 7,
+      "role_token_frequencies": {
+        "commander": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          0.8514,
+          0.0,
+          0.0,
+          0.0,
+          0.0573,
+          0.0521,
+          0.0391,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          0.0,
+          0.3855,
+          0.3042,
+          0.3103,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 1.5763,
+      "mi_defense_wave_flank": 0.2329
+    }
+  },
+  "silent_reference": {
+    "condition_id": "silent_reference",
+    "checkpoint": "none",
+    "policy_type": "silent",
+    "deterministic": true,
+    "ablation": "none",
+    "win_rate": 22.666666666666664,
+    "draw_rate": 61.33333333333333,
+    "loss_rate": 16.0,
+    "mean_reward": 10.002304225546414,
+    "std_reward": 146.82699992161287,
+    "behavior": {
+      "hq_commander_pct": 18.7,
+      "hq_defense_pct": 26.0,
+      "hq_attack_pct": 13.4,
+      "steps_to_first_engagement": 78.7,
+      "units_alive_step_300": 1.42,
+      "mean_combat_group_dist": 232.7
+    },
+    "message_analysis": {}
+  },
+  "scripted_heuristic": {
+    "condition_id": "scripted_heuristic",
+    "checkpoint": "none",
+    "policy_type": "scripted",
+    "deterministic": true,
+    "ablation": "none",
+    "win_rate": 45.33333333333333,
+    "draw_rate": 33.33333333333333,
+    "loss_rate": 21.333333333333336,
+    "mean_reward": 70.75157606930749,
+    "std_reward": 174.61930807724278,
+    "behavior": {
+      "hq_commander_pct": 16.8,
+      "hq_defense_pct": 8.6,
+      "hq_attack_pct": 14.5,
+      "steps_to_first_engagement": 69.7,
+      "units_alive_step_300": 1.54,
+      "mean_combat_group_dist": 103.3
+    },
+    "message_analysis": {}
+  },
+  "random_policy": {
+    "condition_id": "random_policy",
+    "checkpoint": "none",
+    "policy_type": "random",
+    "deterministic": false,
+    "ablation": "none",
+    "win_rate": 5.333333333333334,
+    "draw_rate": 85.33333333333334,
+    "loss_rate": 9.333333333333334,
+    "mean_reward": -22.18987472727409,
+    "std_reward": 86.34458645976683,
+    "behavior": {
+      "hq_commander_pct": 73.0,
+      "hq_defense_pct": 68.2,
+      "hq_attack_pct": 59.8,
+      "steps_to_first_engagement": 171.6,
+      "units_alive_step_300": 1.89,
+      "mean_combat_group_dist": 36.7
+    },
+    "message_analysis": {}
+  },
+  "old_comm_s101": {
+    "condition_id": "old_comm_s101",
+    "checkpoint": "artifacts/checkpoints/v3_resumed/comm_s101.pt",
+    "policy_type": "neural_comm",
+    "deterministic": true,
+    "ablation": "none",
+    "win_rate": 8.666666666666668,
+    "draw_rate": 80.0,
+    "loss_rate": 11.333333333333332,
+    "mean_reward": -1.7706847201141414,
+    "std_reward": 96.63108496256052,
+    "behavior": {
+      "hq_commander_pct": 18.9,
+      "hq_defense_pct": 41.6,
+      "hq_attack_pct": 9.2,
+      "steps_to_first_engagement": 155.9,
+      "units_alive_step_300": 2.13,
+      "mean_combat_group_dist": 50.5
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 6,
+      "role_token_frequencies": {
+        "commander": [
+          0.0,
+          0.0,
+          0.154,
+          0.1861,
+          0.0815,
+          0.008,
+          0.0191,
+          0.3157,
+          0.2357
+        ],
+        "defense": [
+          0.0,
+          0.0,
+          0.2797,
+          0.1212,
+          0.0352,
+          0.0007,
+          0.0189,
+          0.296,
+          0.2483
+        ],
+        "attack": [
+          0.0,
+          0.0,
+          0.2568,
+          0.2913,
+          0.0443,
+          0.0005,
+          0.0099,
+          0.2671,
+          0.1303
+        ]
+      },
+      "mi_attack_weak_lane": 0.0511,
+      "mi_defense_wave_flank": 0.0076
+    }
+  },
+  "bc_student_zeroed": {
+    "condition_id": "bc_student_zeroed",
+    "checkpoint": "artifacts/checkpoints/comm_bc_student.pt",
+    "policy_type": "neural_comm",
+    "deterministic": true,
+    "ablation": "zeroed",
+    "win_rate": 23.333333333333332,
+    "draw_rate": 69.33333333333334,
+    "loss_rate": 7.333333333333333,
+    "mean_reward": 25.39066101298657,
+    "std_reward": 151.8285558543652,
+    "behavior": {
+      "hq_commander_pct": 23.1,
+      "hq_defense_pct": 24.2,
+      "hq_attack_pct": 12.8,
+      "steps_to_first_engagement": 90.1,
+      "units_alive_step_300": 1.86,
+      "mean_combat_group_dist": 209.5
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 1,
+      "role_token_frequencies": {
+        "commander": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 0.0,
+      "mi_defense_wave_flank": 0.0
+    }
+  },
+  "bc_student_random": {
+    "condition_id": "bc_student_random",
+    "checkpoint": "artifacts/checkpoints/comm_bc_student.pt",
+    "policy_type": "neural_comm",
+    "deterministic": true,
+    "ablation": "random",
+    "win_rate": 29.333333333333332,
+    "draw_rate": 54.0,
+    "loss_rate": 16.666666666666664,
+    "mean_reward": 32.16687228011979,
+    "std_reward": 166.57580360143882,
+    "behavior": {
+      "hq_commander_pct": 22.6,
+      "hq_defense_pct": 15.7,
+      "hq_attack_pct": 12.4,
+      "steps_to_first_engagement": 90.5,
+      "units_alive_step_300": 1.63,
+      "mean_combat_group_dist": 186.6
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 8,
+      "role_token_frequencies": {
+        "commander": [
+          0.0,
+          0.1255,
+          0.1256,
+          0.1245,
+          0.1228,
+          0.125,
+          0.1279,
+          0.1244,
+          0.1243
+        ],
+        "defense": [
+          0.0,
+          0.1237,
+          0.1244,
+          0.1263,
+          0.1266,
+          0.1244,
+          0.1243,
+          0.1252,
+          0.1251
+        ],
+        "attack": [
+          0.0,
+          0.1263,
+          0.1257,
+          0.1267,
+          0.1258,
+          0.1223,
+          0.1244,
+          0.1229,
+          0.126
+        ]
+      },
+      "mi_attack_weak_lane": 0.0003,
+      "mi_defense_wave_flank": 0.0002
+    }
+  },
+  "bc_student_shuffled": {
+    "condition_id": "bc_student_shuffled",
+    "checkpoint": "artifacts/checkpoints/comm_bc_student.pt",
+    "policy_type": "neural_comm",
+    "deterministic": true,
+    "ablation": "shuffled",
+    "win_rate": 28.000000000000004,
+    "draw_rate": 60.66666666666667,
+    "loss_rate": 11.333333333333332,
+    "mean_reward": 40.987914315011544,
+    "std_reward": 167.80747900943246,
+    "behavior": {
+      "hq_commander_pct": 19.3,
+      "hq_defense_pct": 21.5,
+      "hq_attack_pct": 12.0,
+      "steps_to_first_engagement": 90.1,
+      "units_alive_step_300": 1.86,
+      "mean_combat_group_dist": 168.4
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 7,
+      "role_token_frequencies": {
+        "commander": [
+          0.9975,
+          0.0001,
+          0.0022,
+          0.0002,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          0.8621,
+          0.0,
+          0.0004,
+          0.0,
+          0.0536,
+          0.0483,
+          0.0356,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          0.0008,
+          0.3808,
+          0.3092,
+          0.3092,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 1.5765,
+      "mi_defense_wave_flank": 0.2155
+    }
+  },
+  "comm_ppo_s101_zeroed": {
+    "condition_id": "comm_ppo_s101_zeroed",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s101.pt",
+    "policy_type": "neural_comm",
+    "deterministic": true,
+    "ablation": "zeroed",
+    "win_rate": 24.666666666666668,
+    "draw_rate": 70.66666666666667,
+    "loss_rate": 4.666666666666667,
+    "mean_reward": 33.61272161904925,
+    "std_reward": 145.98547938458788,
+    "behavior": {
+      "hq_commander_pct": 22.1,
+      "hq_defense_pct": 24.8,
+      "hq_attack_pct": 12.8,
+      "steps_to_first_engagement": 90.0,
+      "units_alive_step_300": 1.99,
+      "mean_combat_group_dist": 212.4
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 1,
+      "role_token_frequencies": {
+        "commander": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 0.0,
+      "mi_defense_wave_flank": 0.0
+    }
+  },
+  "comm_ppo_s101_random": {
+    "condition_id": "comm_ppo_s101_random",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s101.pt",
+    "policy_type": "neural_comm",
+    "deterministic": true,
+    "ablation": "random",
+    "win_rate": 33.33333333333333,
+    "draw_rate": 49.333333333333336,
+    "loss_rate": 17.333333333333336,
+    "mean_reward": 43.54498376100166,
+    "std_reward": 173.3005992829279,
+    "behavior": {
+      "hq_commander_pct": 22.0,
+      "hq_defense_pct": 13.0,
+      "hq_attack_pct": 12.3,
+      "steps_to_first_engagement": 90.6,
+      "units_alive_step_300": 1.56,
+      "mean_combat_group_dist": 176.3
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 8,
+      "role_token_frequencies": {
+        "commander": [
+          0.0,
+          0.1232,
+          0.127,
+          0.123,
+          0.1268,
+          0.1221,
+          0.1264,
+          0.127,
+          0.1245
+        ],
+        "defense": [
+          0.0,
+          0.126,
+          0.1255,
+          0.1228,
+          0.1262,
+          0.1248,
+          0.1252,
+          0.1271,
+          0.1225
+        ],
+        "attack": [
+          0.0,
+          0.1268,
+          0.1241,
+          0.1258,
+          0.1256,
+          0.1226,
+          0.1252,
+          0.1243,
+          0.1256
+        ]
+      },
+      "mi_attack_weak_lane": 0.0002,
+      "mi_defense_wave_flank": 0.0003
+    }
+  },
+  "comm_ppo_s101_shuffled": {
+    "condition_id": "comm_ppo_s101_shuffled",
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s101.pt",
+    "policy_type": "neural_comm",
+    "deterministic": true,
+    "ablation": "shuffled",
+    "win_rate": 25.333333333333336,
+    "draw_rate": 56.666666666666664,
+    "loss_rate": 18.0,
+    "mean_reward": 26.66054406072954,
+    "std_reward": 164.68169547477527,
+    "behavior": {
+      "hq_commander_pct": 20.0,
+      "hq_defense_pct": 18.3,
+      "hq_attack_pct": 11.4,
+      "steps_to_first_engagement": 90.1,
+      "units_alive_step_300": 1.77,
+      "mean_combat_group_dist": 161.2
+    },
+    "message_analysis": {
+      "tokens_used_out_of_9": 7,
+      "role_token_frequencies": {
+        "commander": [
+          0.9958,
+          0.0006,
+          0.0,
+          0.0027,
+          0.0009,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "defense": [
+          0.8589,
+          0.0,
+          0.0001,
+          0.0005,
+          0.0546,
+          0.0504,
+          0.0354,
+          0.0,
+          0.0
+        ],
+        "attack": [
+          0.0039,
+          0.3893,
+          0.3028,
+          0.304,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mi_attack_weak_lane": 1.5685,
+      "mi_defense_wave_flank": 0.2204
+    }
+  }
+}

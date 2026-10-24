@@ -39,11 +39,12 @@ def main():
     print("  [Q / ESC]    Exit Demonstration Window\n")
 
     policy = None
-    include_role_id = False
+    include_role_id = True
     if Path(args.checkpoint).exists():
         policy, meta = load_checkpoint(args.checkpoint)
-        include_role_id = meta.get("obs_dim", 49) == 52
-        print(f"Loaded trained neural policy: {args.checkpoint} (Steps: {meta.get('total_steps', 0)}, Obs Dim: {meta.get('obs_dim', 49)})\n")
+        actual_obs_dim = meta.get("obs_dim", getattr(policy, "obs_dim", 73))
+        include_role_id = actual_obs_dim in (52, 73)
+        print(f"Loaded trained neural policy: {args.checkpoint} (Steps: {meta.get('total_steps', 0)}, Obs Dim: {actual_obs_dim})\n")
     else:
         print("[Notice] Trained checkpoint not detected; demonstration will run autonomous heuristic baseline.\n")
 
@@ -51,13 +52,25 @@ def main():
         coordination_mode=args.mode,
         opponent_strategy=args.opponent,
         include_role_id=include_role_id,
+        enable_team_cohesion=True,
     )
 
+    demo_initial_mode = "comm" if args.mode == "coordinated" else "no_comm"
+
     try:
-        renderer = BattlefieldRenderer(env=env, policy=policy, headless=False)
+        renderer = BattlefieldRenderer(
+            env=env,
+            policy=policy,
+            comm_checkpoint=args.checkpoint if args.mode == "coordinated" else None,
+            nocomm_checkpoint=args.checkpoint if args.mode == "independent" else None,
+            demo_mode=demo_initial_mode,
+            headless=False,
+        )
         renderer.run_episode()
     except Exception as e:
-        print(f"Display rendering exception ({e}); running headless demonstration.")
+        import traceback
+        traceback.print_exc()
+        print(f"\nDisplay rendering exception ({e}); running headless demonstration.")
         obs, _ = env.reset()
         for step in range(300):
             obs, rewards, terms, truncs, infos = env.step({"commander": 0, "defense": 5, "attack": 2})

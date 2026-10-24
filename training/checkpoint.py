@@ -48,7 +48,10 @@ def load_checkpoint(
     if not target_path.exists():
         raise FileNotFoundError(f"Checkpoint not found at: {target_path}")
 
-    checkpoint = torch.load(target_path, map_location=device)
+    try:
+        checkpoint = torch.load(target_path, map_location=device, weights_only=False)
+    except TypeError:
+        checkpoint = torch.load(target_path, map_location=device)
 
     if policy is None:
         obs_dim = checkpoint.get("obs_dim", 73)

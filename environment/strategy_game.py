@@ -86,6 +86,8 @@ class StrategyGameEnv:
         }
 
         self.reward_calculator = RewardCalculator()
+        if kwargs.get("enable_team_cohesion", False):
+            self.reward_calculator.enable_team_cohesion = True
         self.coordinator = TacticalCoordinator(coordination_mode=coordination_mode)
         self.state: Optional[GameState] = None
 

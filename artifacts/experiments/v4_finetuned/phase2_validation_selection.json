@@ -1,0 +1,207 @@
+{
+  "selected_checkpoints": {
+    "comm_s42": {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s42.pt",
+      "coordination_mode": "coordinated",
+      "win_rate": 50.0,
+      "draw_rate": 35.0,
+      "loss_rate": 15.0,
+      "mean_reward": 110.87524631770496,
+      "mean_steps": 247.65,
+      "label": "comm_s42_100000"
+    },
+    "no_comm_s42": {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s42_step_75000.pt",
+      "coordination_mode": "independent",
+      "win_rate": 51.66666666666667,
+      "draw_rate": 20.0,
+      "loss_rate": 28.333333333333332,
+      "mean_reward": 80.54146716853052,
+      "mean_steps": 225.83333333333334,
+      "label": "no_comm_s42_75000"
+    },
+    "comm_s101": {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s101.pt",
+      "coordination_mode": "coordinated",
+      "win_rate": 51.66666666666667,
+      "draw_rate": 33.33333333333333,
+      "loss_rate": 15.0,
+      "mean_reward": 117.7494257077005,
+      "mean_steps": 246.85,
+      "label": "comm_s101_100000"
+    },
+    "no_comm_s101": {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s101_step_75000.pt",
+      "coordination_mode": "independent",
+      "win_rate": 50.0,
+      "draw_rate": 18.333333333333332,
+      "loss_rate": 31.666666666666664,
+      "mean_reward": 69.3165588404604,
+      "mean_steps": 231.51666666666668,
+      "label": "no_comm_s101_75000"
+    },
+    "comm_s202": {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s202_step_75000.pt",
+      "coordination_mode": "coordinated",
+      "win_rate": 51.66666666666667,
+      "draw_rate": 31.666666666666664,
+      "loss_rate": 16.666666666666664,
+      "mean_reward": 115.83426004419582,
+      "mean_steps": 244.28333333333333,
+      "label": "comm_s202_75000"
+    },
+    "no_comm_s202": {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s202_step_75000.pt",
+      "coordination_mode": "independent",
+      "win_rate": 33.33333333333333,
+      "draw_rate": 23.333333333333332,
+      "loss_rate": 43.333333333333336,
+      "mean_reward": 7.3767400346040635,
+      "mean_steps": 243.78333333333333,
+      "label": "no_comm_s202_75000"
+    }
+  },
+  "best_overall_comm": {
+    "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s101.pt",
+    "coordination_mode": "coordinated",
+    "win_rate": 51.66666666666667,
+    "draw_rate": 33.33333333333333,
+    "loss_rate": 15.0,
+    "mean_reward": 117.7494257077005,
+    "mean_steps": 246.85,
+    "label": "comm_s101_100000"
+  },
+  "all_evaluations": [
+    {
+      "checkpoint": "artifacts/checkpoints/comm_bc_student.pt",
+      "coordination_mode": "coordinated",
+      "win_rate": 56.666666666666664,
+      "draw_rate": 28.333333333333332,
+      "loss_rate": 15.0,
+      "mean_reward": 129.8899760563685,
+      "mean_steps": 241.78333333333333,
+      "label": "comm_bc_fallback"
+    },
+    {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s42_step_75000.pt",
+      "coordination_mode": "coordinated",
+      "win_rate": 50.0,
+      "draw_rate": 33.33333333333333,
+      "loss_rate": 16.666666666666664,
+      "mean_reward": 110.08952643600978,
+      "mean_steps": 245.95,
+      "label": "comm_s42_75000"
+    },
+    {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s42_step_75000.pt",
+      "coordination_mode": "independent",
+      "win_rate": 51.66666666666667,
+      "draw_rate": 20.0,
+      "loss_rate": 28.333333333333332,
+      "mean_reward": 80.54146716853052,
+      "mean_steps": 225.83333333333334,
+      "label": "no_comm_s42_75000"
+    },
+    {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s42.pt",
+      "coordination_mode": "coordinated",
+      "win_rate": 50.0,
+      "draw_rate": 35.0,
+      "loss_rate": 15.0,
+      "mean_reward": 110.87524631770496,
+      "mean_steps": 247.65,
+      "label": "comm_s42_100000"
+    },
+    {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s42.pt",
+      "coordination_mode": "independent",
+      "win_rate": 51.66666666666667,
+      "draw_rate": 16.666666666666664,
+      "loss_rate": 31.666666666666664,
+      "mean_reward": 69.7894228281398,
+      "mean_steps": 229.06666666666666,
+      "label": "no_comm_s42_100000"
+    },
+    {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s101_step_75000.pt",
+      "coordination_mode": "coordinated",
+      "win_rate": 51.66666666666667,
+      "draw_rate": 28.333333333333332,
+      "loss_rate": 20.0,
+      "mean_reward": 114.62864280986828,
+      "mean_steps": 243.13333333333333,
+      "label": "comm_s101_75000"
+    },
+    {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s101_step_75000.pt",
+      "coordination_mode": "independent",
+      "win_rate": 50.0,
+      "draw_rate": 18.333333333333332,
+      "loss_rate": 31.666666666666664,
+      "mean_reward": 69.3165588404604,
+      "mean_steps": 231.51666666666668,
+      "label": "no_comm_s101_75000"
+    },
+    {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s101.pt",
+      "coordination_mode": "coordinated",
+      "win_rate": 51.66666666666667,
+      "draw_rate": 33.33333333333333,
+      "loss_rate": 15.0,
+      "mean_reward": 117.7494257077005,
+      "mean_steps": 246.85,
+      "label": "comm_s101_100000"
+    },
+    {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s101.pt",
+      "coordination_mode": "independent",
+      "win_rate": 48.333333333333336,
+      "draw_rate": 18.333333333333332,
+      "loss_rate": 33.33333333333333,
+      "mean_reward": 63.92739204716422,
+      "mean_steps": 231.23333333333332,
+      "label": "no_comm_s101_100000"
+    },
+    {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s202_step_75000.pt",
+      "coordination_mode": "coordinated",
+      "win_rate": 51.66666666666667,
+      "draw_rate": 31.666666666666664,
+      "loss_rate": 16.666666666666664,
+      "mean_reward": 115.83426004419582,
+      "mean_steps": 244.28333333333333,
+      "label": "comm_s202_75000"
+    },
+    {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s202_step_75000.pt",
+      "coordination_mode": "independent",
+      "win_rate": 33.33333333333333,
+      "draw_rate": 23.333333333333332,
+      "loss_rate": 43.333333333333336,
+      "mean_reward": 7.3767400346040635,
+      "mean_steps": 243.78333333333333,
+      "label": "no_comm_s202_75000"
+    },
+    {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\comm_s202.pt",
+      "coordination_mode": "coordinated",
+      "win_rate": 51.66666666666667,
+      "draw_rate": 31.666666666666664,
+      "loss_rate": 16.666666666666664,
+      "mean_reward": 114.08908817450431,
+      "mean_steps": 244.15,
+      "label": "comm_s202_100000"
+    },
+    {
+      "checkpoint": "artifacts\\checkpoints\\v4_finetuned\\no_comm_s202.pt",
+      "coordination_mode": "independent",
+      "win_rate": 25.0,
+      "draw_rate": 26.666666666666668,
+      "loss_rate": 48.333333333333336,
+      "mean_reward": -25.640059540408874,
+      "mean_steps": 247.35,
+      "label": "no_comm_s202_100000"
+    }
+  ],
+  "duration_sec": 527.1902213096619
+}
