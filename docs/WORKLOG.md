@@ -533,12 +533,60 @@ A rigorous diagnostic audit of the v4 experimental setup revealed key confoundin
 - **Schedule**:
   - **Phase 0 (Setup & Audit)**: 15 min [Completed at T+10 min]
   - **Phase 3 (Scaled Long RL Runs)**: 90 min [Runs concurrently in background across 7 processes: 3 COMM, 3 NO_COMM, 1 EMERGENT]
-  - **Phase 1 (Failure Mode Analysis)**: 20 min [Runs during Phase 3 on validation seeds 1000–1049]
+  - **Phase 1 (Failure Mode Analysis)**: 20 min [Completed on validation seeds 1000–1049]
   - **Phase 2 (Environment & Strategy Fixes behind Flags)**: 30 min [Runs during Phase 3; benchmark Oracle_v2 on validation seeds]
   - **Phase 4 (Robustness Testing Suite)**: 25 min [Post Phase 3 completion]
   - **Phase 5 (Final Rigorous Evaluation on Fresh Seeds 7000–7099)**: 25 min
   - **Phase 6 (Demo, Visualization, PR & Docs)**: 15 min
 - **Contingency Rule**: If training throughput drops, scale steps from 1.5M down to 1.0M. Evaluation seeds 7000–7099 are strictly reserved for Phase 5.
+
+---
+
+## Phase 1: Failure Mode Analysis (Validation Seeds 1000–1049, 150 Episodes per Model)
+
+### 1.1 Experimental Setup & Evaluation Scope
+- Evaluated **Oracle Messenger** and **Best COMM** (`artifacts/checkpoints/comm_best.pt`) on 50 validation seeds (`1000`–`1049`) across all 3 opponent archetypes (`aggressive`, `defensive`, `resource_focused`), totaling 150 episodes per model.
+- Analyzed draw and loss episodes to classify the underlying tactical breakdown causes.
+
+### 1.2 Summary Outcome Metrics on Validation Set
+
+| Metric | Oracle Reference | Best Learned COMM (`comm_best.pt`) |
+|---|---|---|
+| **Overall Win Rate** | 51.3% (77/150) | 48.7% (73/150) |
+| **Overall Draw Rate** | 31.3% (47/150) | 36.0% (54/150) |
+| **Overall Loss Rate** | 17.3% (26/150) | 15.3% (23/150) |
+| **Scout Survival at Step 100** | 92.0% (138/150) | 91.3% (137/150) |
+| **Win Rate when Scout Alive @ 100** | **51.4%** | **49.6%** |
+| **Win Rate when Scout Dies Before 100** | **50.0%** | **38.5% (-11.1%)** |
+
+### 1.3 Failure Mode Classification in Non-Wins (Draws + Losses)
+
+| Failure Mode | Oracle Non-Wins ($N=73$) | Best COMM Non-Wins ($N=77$) | Root Cause Diagnosis |
+|---|---|---|---|
+| **1. Low-HP Death Without Recovery** | **95.9%** (70 eps) | **96.1%** (74 eps) | Units retreat upon taking damage, but die on subsequent skirmishes without recovering HP. |
+| **2. Defense Out of Position** | **58.9%** (43 eps) | **57.1%** (44 eps) | Defense advances past 280 px during weak lane attack, leaving base undefended when timed wave hits. |
+| **3. Wave Sneak Damage to HQ** | **26.0%** (19 eps) | **27.3%** (21 eps) | Enemy assault wave damages or destroys friendly base while all friendly units are $>300$ px away. |
+| **4. Early Scout Death (< Step 100)** | **8.2%** (6 eps) | **10.4%** (8 eps) | Scout dies early; in Best COMM, this causes win rate to plunge from 49.6% down to 38.5%. |
+| **5. Squad Split** | **2.7%** (2 eps) | **3.9%** (3 eps) | Very rare; v4 team cohesion keeps the squad clustered in $>96\%$ of episodes. |
+
+### 1.4 Deep-Dive: Why Low-HP Retreat Fails (The Supply Blindness Gap)
+- **Empirical Measurement**:
+  - Across all 150 episodes, **282 low-HP units died** without recovery, while only **9–10 units successfully recovered** ($\approx \mathbf{3.1\%\text{ to }3.4\%}$ recovery rate).
+  - Average distance from a low-HP unit to the nearest active supply drop: **235.1 px (Oracle) / 239.3 px (COMM)**.
+- **Mechanism of Failure**:
+  - The map is $800 \times 600$ px.
+  - Vision ranges are: Attack Scout = 120 px, Commander = 80 px, Defense = 80 px.
+  - Because supply drops spawn uniformly across the map and are on average ~240 px away, units at low HP **cannot see the supply drop**. Tactical retreat simply moves them backwards into open terrain or towards base where they stall and die.
+  - **Prescription for Phase 2**: Confirms the necessity of `hq_regen` (units within 60 px of HQ regenerate 0.5 HP/step) and `supply_broadcast` (supply drops announce coordinates to observation channels).
+
+### 1.5 Deep-Dive: Opponent Archetype Breakdown & Worst Opponent
+- **Opponent Win Rates (Oracle / Best COMM)**:
+  - `aggressive`: **68.0% / 62.0%** (Friendly units counter-push effectively as aggressive units overextend).
+  - `resource_focused`: **56.0% / 54.0%** (Friendly squad exploits the weak generator before resource harvesting snowballs).
+  - `defensive`: **30.0% / 30.0%** (**Worst Opponent Archetype by far**).
+- **Why Defensive is the Hardest**:
+  - The Defensive opponent stations guards around generators and turtle at base, creating high draw rates (48%–50%) and punishing incomplete assaults. Without proactive flank interception and sustained siege power, friendly units run out of the 300-step clock.
+
 
 
 
