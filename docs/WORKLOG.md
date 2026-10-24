@@ -491,4 +491,54 @@ While `COMM_AUX` successfully forces the sender's policy to encode battlefield g
   - For learned COMM mode, the battlefield renderer now displays raw token IDs (`[Token ID X]` or `Comm: Raw Token X`) instead of decoding into heuristic lane names.
   - Presentation demo modes `[1] ORACLE`, `[2] SILENT`, `[3] COMM (PPO)`, and `[4] NO_COMM (PPO)` all verified functional.
 
+---
+
+# STRATOS AI — Engineering Worklog (`v5-improvements`)
+
+## Phase 0: Setup, Baseline Audit, and Wall-Clock Time Plan
+
+### 0.1 Audit of v4 Comparison (COMM vs. NO_COMM Confounding Factors)
+A rigorous diagnostic audit of the v4 experimental setup revealed key confounding factors in the comparison between COMM and NO_COMM:
+1. **Asymmetric Supervised Pretraining / Prior**:
+   - In v4, `COMM` was initialized from `comm_bc_student.pt`, which was trained via Behavior Cloning on 267k state-action-message samples from `OracleMessengerPolicy`. In those samples, the policy learned that Commander and Defense hold perimeter until a nonzero weak-lane token arrives in `obs[52:70]`, after which they advance.
+   - `NO_COMM` was *also* initialized from `comm_bc_student.pt`, but run in `coordination_mode="independent"` where communication is disabled and message channels are hard-zeroed.
+   - Consequently, NO_COMM began RL with a prior that penalized advancing without scout tokens. Commander and Defense spent the first 50k+ steps waiting at base for signals that could never arrive.
+   - COMM had an imitation prior aligned with its message protocol; NO_COMM had an imitation prior that actively crippled independent coordination.
+2. **Evaluation & Training Symmetry**:
+   - Training step budget (100k steps) was identical, reward function was identical, and opponent distribution was identical.
+   - However, because NO_COMM had to first unlearn the "wait for token" behavior before learning independent lane assignment, 100k steps was insufficient for NO_COMM to converge.
+3. **Remedy for v5**:
+   - In v5, `NO_COMM_LONG` will be given a fair baseline control: trained with independent BC demonstrations from `SilentReferencePolicy` (where units scout and push without messages) or trained symmetrically from scratch with equalized step counts (1.0M–1.5M steps) so that communication is tested against a truly optimized independent policy.
+
+### 0.2 Per-Opponent Breakdown on Retired Seeds (5000–5049, 150 Episodes per Model)
+*Note: Seeds 5000–5049 are retired from v4 and used strictly for auditing past v4 performance. They are never used for v5 decisions or final reporting.*
+
+| Condition / Model | Aggressive Win% (Draw% / Loss%) [Rew] | Defensive Win% (Draw% / Loss%) [Rew] | Resource-Focused Win% (Draw% / Loss%) [Rew] | Overall Win Rate |
+|---|---|---|---|---|
+| **Oracle Messenger** | 60.0% (34.0% / 6.0%) [+170.1] | 34.0% (42.0% / 24.0%) [+57.1] | 70.0% (22.0% / 8.0%) [+186.0] | **54.7%** |
+| **COMM BC Student** | 62.0% (36.0% / 2.0%) [+179.6] | 34.0% (42.0% / 24.0%) [+55.8] | 66.0% (28.0% / 6.0%) [+177.4] | **54.0%** |
+| **COMM Best (s101)** | 62.0% (34.0% / 4.0%) [+178.1] | 36.0% (38.0% / 26.0%) [+60.2] | 70.0% (22.0% / 8.0%) [+186.5] | **56.0%** |
+| **NO_COMM (s42)** | 48.0% (8.0% / 44.0%) [+61.9] | 24.0% (20.0% / 56.0%) [-28.4] | 54.0% (12.0% / 34.0%) [+85.5] | **42.0%** |
+| **NO_COMM (s101)** | 34.0% (10.0% / 56.0%) [+5.6] | 24.0% (24.0% / 52.0%) [-29.1] | 40.0% (34.0% / 26.0%) [+53.7] | **32.7%** |
+| **NO_COMM (s202)** | 42.0% (28.0% / 30.0%) [+52.2] | 24.0% (24.0% / 52.0%) [-25.6] | 36.0% (32.0% / 32.0%) [+41.3] | **34.0%** |
+| **NO_COMM Mean** | 41.3% (15.3% / 43.3%) [+39.9] | **24.0% (21.3% / 54.7%) [-27.7]** | 43.3% (26.0% / 30.7%) [+60.2] | **36.2%** |
+
+**Key Diagnostic Insights**:
+- **Defensive Opponent is the Achilles Heel**: All models struggle most against the `defensive` archetype. Defensive fortifies lanes, making individual uncoordinated skirmishes lethal. NO_COMM achieves only a **24.0% win rate** against Defensive (with 54.7% losses and negative rewards), whereas COMM achieves 36.0% wins with +60.2 reward.
+- **Resource-Focused Opponent is the Most Exploitable**: COMM achieves 70.0% wins against `resource_focused` by rapidly identifying and destroying the weak generator before enemy harvesting pays off.
+
+### 0.3 Wall-Clock Time Plan & Resource Allocation
+- **Hard Wall-Clock Budget**: 180 minutes total.
+- **Hardware Profile**: 12 CPU cores available. Measured throughput: ~1,650–2,000 steps/sec across parallel processes.
+- **Schedule**:
+  - **Phase 0 (Setup & Audit)**: 15 min [Completed at T+10 min]
+  - **Phase 3 (Scaled Long RL Runs)**: 90 min [Runs concurrently in background across 7 processes: 3 COMM, 3 NO_COMM, 1 EMERGENT]
+  - **Phase 1 (Failure Mode Analysis)**: 20 min [Runs during Phase 3 on validation seeds 1000–1049]
+  - **Phase 2 (Environment & Strategy Fixes behind Flags)**: 30 min [Runs during Phase 3; benchmark Oracle_v2 on validation seeds]
+  - **Phase 4 (Robustness Testing Suite)**: 25 min [Post Phase 3 completion]
+  - **Phase 5 (Final Rigorous Evaluation on Fresh Seeds 7000–7099)**: 25 min
+  - **Phase 6 (Demo, Visualization, PR & Docs)**: 15 min
+- **Contingency Rule**: If training throughput drops, scale steps from 1.5M down to 1.0M. Evaluation seeds 7000–7099 are strictly reserved for Phase 5.
+
+
 
