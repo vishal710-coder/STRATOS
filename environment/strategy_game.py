@@ -62,6 +62,8 @@ class StrategyGameEnv:
         self.msg_tokens = self.vocab_size + 1  # +1 for "silent" token (index 0)
         self.msg_delay = int(comm_cfg.get("message_delay", 1))
         self.msg_cost = float(kwargs.get("message_cost", comm_cfg.get("message_cost", 0.0)))
+        self.hq_regen = bool(kwargs.get("hq_regen", False))
+        self.supply_broadcast = bool(kwargs.get("supply_broadcast", False))
 
         # Observation dimensions:
         # [self_status(5) + friendly_base(3) + enemy_base(3) + teammates(2x4=8) +
@@ -123,6 +125,10 @@ class StrategyGameEnv:
             self.coordinator.coordination_mode = self.coordination_mode
         if options and "enable_communication" in options:
             self.enable_communication = options["enable_communication"]
+        if options and "hq_regen" in options:
+            self.hq_regen = bool(options["hq_regen"])
+        if options and "supply_broadcast" in options:
+            self.supply_broadcast = bool(options["supply_broadcast"])
 
         self.agents = list(self.possible_agents)
         self.coordinator.reset()
@@ -403,9 +409,15 @@ class StrategyGameEnv:
                 "friendly_resources": self.state.friendly_resources,
                 "enemy_strategy": self.state.enemy_strategy,
                 "storm_active": self.state.storm is not None and self.state.storm.active,
+                "supply_drop_broadcast": (
+                    (self.state.supply_drop.x, self.state.supply_drop.y)
+                    if self.supply_broadcast and self.state.supply_drop and not self.state.supply_drop.collected
+                    else None
+                ),
             }
             for agent in self.possible_agents
         }
+
 
         return obs, rewards, terminations, truncations, infos
 
@@ -615,6 +627,20 @@ class StrategyGameEnv:
                             fu.hp = min(fu.max_hp, fu.hp + fu.max_hp * sd.heal_fraction)
                     sd.collected = True
                     break
+
+        # --- HQ Regeneration (Environment Fix 1, default False) ---
+        if self.hq_regen:
+            fbase = s.bases.get("friendly")
+            if fbase and fbase.is_alive:
+                for fu in s.friendly_units.values():
+                    if fu.is_alive and fu.distance_to(fbase.x, fbase.y) <= 60.0:
+                        fu.hp = min(fu.max_hp, fu.hp + 0.5)
+            ebase = s.bases.get("enemy")
+            if ebase and ebase.is_alive:
+                for eu in s.enemy_units.values():
+                    if eu.is_alive and eu.distance_to(ebase.x, ebase.y) <= 60.0:
+                        eu.hp = min(eu.max_hp, eu.hp + 0.5)
+
 
         # --- Resource node respawn ---
         if step == s.next_resource_spawn_step:
