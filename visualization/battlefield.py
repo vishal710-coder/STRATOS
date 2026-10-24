@@ -146,18 +146,21 @@ class BattlefieldRenderer:
         """Resolve best available checkpoint path for condition."""
         if cond == "comm":
             candidates = [
+                "artifacts/checkpoints/comm_best.pt",
+                "artifacts/checkpoints/comm_bc_student.pt",
+                "artifacts/checkpoints/v4_finetuned/comm_s101.pt",
+                "artifacts/checkpoints/v4_finetuned/comm_s42.pt",
+                "artifacts/checkpoints/v4_finetuned/comm_s202_step_75000.pt",
                 "artifacts/checkpoints/v3_resumed/comm_s101.pt",
-                "artifacts/checkpoints/v3_sanity/comm_s42.pt",
-                "artifacts/checkpoints/v3_resumed/comm_s42.pt",
                 "artifacts/checkpoints/stratos_policy_comm_best.pt",
-                "artifacts/checkpoints/stratos_policy_comm_seed42.pt",
             ]
         else:
             candidates = [
+                "artifacts/checkpoints/v4_finetuned/no_comm_s42_step_75000.pt",
+                "artifacts/checkpoints/v4_finetuned/no_comm_s101_step_75000.pt",
+                "artifacts/checkpoints/v4_finetuned/no_comm_s202_step_75000.pt",
+                "artifacts/checkpoints/v4_finetuned/no_comm_s42.pt",
                 "artifacts/checkpoints/v3_resumed/no_comm_s101.pt",
-                "artifacts/checkpoints/v3_sanity/no_comm_s101.pt",
-                "artifacts/checkpoints/v3_resumed/no_comm_s202.pt",
-                "artifacts/checkpoints/stratos_policy_nocomm_seed101.pt",
             ]
         for c in candidates:
             if Path(c).exists():
@@ -685,8 +688,11 @@ class BattlefieldRenderer:
 
             # Communication Sent Token
             t = self.last_sent_tokens.get(aid, 0)
-            t_str = decode_token_label(t)
-            t_txt = self.font_tiny.render(f"Comm: T{t} ({t_str})", True, COLOR_TEXT_GOLD if t > 0 else (120, 135, 155))
+            if self.demo_mode == "comm":
+                comm_display = f"Comm: Raw Token {t}" if t > 0 else "Comm: Token 0 (Silent)"
+            else:
+                comm_display = f"Comm: T{t} ({decode_token_label(t)})"
+            t_txt = self.font_tiny.render(comm_display, True, COLOR_TEXT_GOLD if t > 0 else (120, 135, 155))
             self.screen.blit(t_txt, (panel_x + 20, y + 60))
 
             y += 90
@@ -702,7 +708,7 @@ class BattlefieldRenderer:
         self.screen.blit(self.font_tiny.render("      [SPACE] Pause | [UP/DN] Speed", True, COLOR_TEXT_DIM), (panel_x + 18, y + 64))
 
     def _draw_bottom_ticker(self, state: Any) -> None:
-        """Bottom communication message stream with decoded token meanings."""
+        """Bottom communication message stream with raw token IDs for learned modes."""
         ticker_y = 40 + int(self.map_h)
         ticker_h = self.height - ticker_y
         ticker_rect = pygame.Rect(0, ticker_y, self.width, ticker_h)
@@ -717,11 +723,19 @@ class BattlefieldRenderer:
             t_def = self.last_sent_tokens.get("defense", 0)
             t_cmd = self.last_sent_tokens.get("commander", 0)
 
-            msg_str = (
-                f"ATTACK: T{t_atk} [{decode_token_label(t_atk)}]  |  "
-                f"DEFENSE: T{t_def} [{decode_token_label(t_def)}]  |  "
-                f"COMMANDER: T{t_cmd} [{decode_token_label(t_cmd)}]"
-            )
+            if self.demo_mode == "comm":
+                # For learned modes, show raw token IDs instead of decoding into lane names
+                msg_str = (
+                    f"ATTACK: [Token ID {t_atk}]  |  "
+                    f"DEFENSE: [Token ID {t_def}]  |  "
+                    f"COMMANDER: [Token ID {t_cmd}]"
+                )
+            else:
+                msg_str = (
+                    f"ATTACK: T{t_atk} [{decode_token_label(t_atk)}]  |  "
+                    f"DEFENSE: T{t_def} [{decode_token_label(t_def)}]  |  "
+                    f"COMMANDER: T{t_cmd} [{decode_token_label(t_cmd)}]"
+                )
             color = COLOR_TEXT_MAIN if (t_atk > 0 or t_def > 0) else COLOR_TEXT_DIM
             stream = self.font_body.render(msg_str, True, color)
             self.screen.blit(stream, (180, ticker_y + 16))

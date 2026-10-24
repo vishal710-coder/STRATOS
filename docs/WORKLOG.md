@@ -391,3 +391,104 @@ While `COMM_AUX` successfully forces the sender's policy to encode battlefield g
    - Copied to `artifacts/checkpoints/comm_best.pt`.
    - The BC student fallback model (`comm_bc_student.pt`) remains strong with **+129.89** reward.
 
+---
+
+## Step 10: Phase 3 — Held-Out Evaluation, Behavior Metrics, Message Analysis & Ablation Audit (Completed)
+
+### 10.1 Evaluation Protocol
+- **Evaluation Benchmark**: 150 held-out episodes per condition across fresh, never-trained seeds `5000`..`5049` (50 seeds $\times$ 3 opponent archetypes `aggressive`, `defensive`, `resource_focused`).
+- **Parallel Multi-Core Execution**: 25 evaluation tasks executed concurrently across 12 CPU worker processes in 139.3s (2.32 mins).
+- **Evaluation Modes**: Both greedy ($\arg\max$) and sampled stochastic action/message selections evaluated.
+
+### 10.2 Empirical Held-Out Performance (Seeds 5000–5049, N=150 Episodes per Cell)
+
+| Policy / Condition | Action Mode | Win % | Draw % | Loss % | Mean Reward ($\pm$ Std) |
+|---|---|---|---|---|---|
+| **Oracle Messenger** (Reference) | Deterministic | **54.7%** | 32.7% | 12.7% | **+137.74** ($\pm$179.5) |
+| **COMM BC Student** (`comm_bc_student.pt`)| Greedy | **54.0%** | 35.3% | 10.7% | **+137.59** ($\pm$178.8) |
+| **COMM BC Student** (`comm_bc_student.pt`)| Sampled | **55.3%** | 32.7% | 12.0% | **+141.40** ($\pm$179.4) |
+| **COMM (BC+PPO) Seed 42** | Greedy | 53.3% | 36.0% | 10.7% | +135.27 ($\pm$178.3) |
+| **COMM (BC+PPO) Seed 42** | Sampled | 54.7% | 35.3% | 10.0% | +139.02 ($\pm$177.1) |
+| **COMM (BC+PPO) Seed 101** | Greedy | **56.0%** | 31.3% | 12.7% | **+141.62** ($\pm$181.9) |
+| **COMM (BC+PPO) Seed 101** | Sampled | **56.7%** | 31.3% | 12.0% | **+143.31** ($\pm$178.2) |
+| **COMM (BC+PPO) Seed 202** | Greedy | 54.7% | 32.7% | 12.7% | +137.48 ($\pm$180.5) |
+| **COMM (BC+PPO) Seed 202** | Sampled | 54.0% | 34.7% | 11.3% | +137.11 ($\pm$180.1) |
+| **COMM (BC+PPO) Cluster Mean** | Greedy / Sampled | **54.7% / 55.1%** | 33.3% / 33.8% | 12.0% / 11.1% | **+138.12 / +139.81** |
+| **NO_COMM Seed 42** | Greedy / Sampled | 42.0% / 27.3% | 13.3% / 38.0% | 44.7% / 34.7% | +39.68 / +7.06 |
+| **NO_COMM Seed 101** | Greedy / Sampled | 32.7% / 29.3% | 22.7% / 25.3% | 44.7% / 45.3% | +10.07 / +3.67 |
+| **NO_COMM Seed 202** | Greedy / Sampled | 34.0% / 25.3% | 28.0% / 44.0% | 38.0% / 30.7% | +22.62 / +1.56 |
+| **NO_COMM Cluster Mean** | Greedy / Sampled | **36.2% / 27.3%** | 21.3% / 35.8% | 42.5% / 36.9% | **+24.12 / +4.10** |
+| *Scripted Heuristic* | Heuristic | 45.3% | 33.3% | 21.3% | +70.75 ($\pm$174.6) |
+| *Silent Reference* | Suppressed Comm | 22.7% | 61.3% | 16.0% | +10.00 ($\pm$146.8) |
+| *Earlier Emergent COMM (v3)* | Emergent PPO | 8.7% | 80.0% | 11.3% | -1.77 ($\pm$96.6) |
+| *Random Policy* | Uniform Random | 5.3% | 85.3% | 9.3% | -22.19 ($\pm$86.3) |
+
+### 10.3 Per-Seed Differences & Spread (N=3 Seeds)
+- **Win Rate Difference (COMM minus NO_COMM, Greedy)**:
+  - Seed 42: $+11.3\%$
+  - Seed 101: $+23.3\%$
+  - Seed 202: $+20.7\%$
+  - *Range*: `[+11.3%, +23.3%]`, Cluster Mean: **$+18.5\%$**
+- **Reward Difference (COMM minus NO_COMM, Greedy)**:
+  - Seed 42: $+95.59$
+  - Seed 101: $+131.55$
+  - Seed 202: $+114.86$
+  - *Range*: `[+95.59, +131.55]`, Cluster Mean: **$+114.00$**
+- *Note on Statistical Claims*: With $N=3$ training seeds, we do not claim formal asymptotic statistical significance; we report per-seed values and explicit ranges.
+
+### 10.4 Tactical Behavior Metrics Comparison
+
+| Metric | Oracle Reference | Old COMM (v3 Emergent) | COMM BC Student | COMM (BC+PPO Seed 101) |
+|---|---|---|---|---|
+| **Defense HQ Camping %** | **12.0%** | **41.6%** | **12.0%** | **12.0%** |
+| **Commander HQ Camping %**| 14.5% | 38.2% | 14.8% | 14.6% |
+| **Attack HQ Camping %** | 13.5% | 24.1% | 15.0% | 13.8% |
+| **Steps to First Engagement** | 89.8 | 145.2 | 89.8 | 89.8 |
+| **Units Alive at Step 300** | 2.12 | 1.84 | 2.13 | 2.11 |
+| **Mean Combat Group Distance**| 149.2 | 268.4 | 151.7 | 148.9 |
+
+- **Passive Guarding Verdict**:
+  - **The new COMM does NOT guard passively**.
+  - In old COMM (v3), Defense camped at base for 41.6% of its life while Attack and Commander died alone.
+  - In new COMM (both BC and PPO), Defense HQ time dropped to **12.0%** (matching Oracle's 12.0%). Defense immediately receives the scout's weak lane broadcast, moves out along the designated lane, and joins the squad.
+  - Units arrive at fights in a compact group (mean combat group distance = **148.9**, compared to 268.4 in old COMM where units were scattered across the map).
+
+### 10.5 Message Analysis & Information Theoretic Metrics
+- **Vocabulary Utilization**:
+  - Tokens used out of 9 (frequency $\ge 1\%$): **7 tokens** used.
+  - Token 0 (Silent), Tokens 1–3 (Weak Lane signals), Tokens 4–6 (Flank warning signals).
+- **Role Emission Breakdown**:
+  - **Commander**: **100.0% Token 0 (Strict Silence)**. Commander transmits 0 tokens, perfectly adhering to Oracle discipline.
+  - **Attack Scout**: **0.0% Token 0 (Never Silent)**. Emits Token 1 (38.6%), Token 2 (30.6%), Token 3 (30.8%) matching the ground-truth weak generator lane.
+  - **Defense Guard**: **85.3% Token 0 (Silent)**; emits Tokens 4 (5.7%), 5 (5.2%), 6 (3.9%) strictly during active wave warning alerts.
+- **Mutual Information**:
+  - $I(M_{\text{attack}}; \text{Weak Lane}) = \mathbf{1.576\text{ bits}}$ (out of theoretical maximum $\log_2(3) = 1.585$ bits $\rightarrow$ **99.4% information transmission fidelity**).
+  - $I(M_{\text{defense}}; \text{Wave Flank}) = \mathbf{0.231\text{ bits}}$ (concentrated during warning intervals).
+
+### 10.6 Message Ablation Study (Exact Same 150 Held-Out Episodes)
+
+| Condition & Model | Message Channel | Win Rate (%) | Draw Rate (%) | Loss Rate (%) | Mean Reward |
+|---|---|---|---|---|---|
+| **COMM BC Student** | **Intact** | **54.0%** | **35.3%** | 10.7% | **+137.59** |
+| | **Zeroed** (Token 0) | 23.3% (-30.7%) | 69.3% (+34.0%) | 7.3% | +25.39 (-112.20) |
+| | **Random** (1..8) | 29.3% (-24.7%) | 54.0% (+18.7%) | 16.7% | +32.17 (-105.42) |
+| | **Shuffled** | 28.0% (-26.0%) | 60.7% (+25.4%) | 11.3% | +40.99 (-96.60) |
+| **COMM (BC+PPO s101)** | **Intact** | **56.0%** | **31.3%** | 12.7% | **+141.62** |
+| | **Zeroed** (Token 0) | 24.7% (-31.3%) | 70.7% (+39.4%) | 4.7% | +33.61 (-108.01) |
+| | **Random** (1..8) | 33.3% (-22.7%) | 49.3% (+18.0%) | 17.3% | +43.54 (-98.08) |
+| | **Shuffled** | 25.3% (-30.7%) | 56.7% (+25.4%) | 18.0% | +26.66 (-114.96) |
+
+### 10.7 Scientific Verdict: Does Learned COMM Now Use Messages?
+**YES**.
+- When messages are intact, COMM achieves **56.0% win rate** and **+141.62 reward**.
+- When messages are zeroed, win rate **collapses by 31.3%** (down to 24.7%), reward **plummets by 108.01 points** (down to +33.61), and draw rate **surges from 31.3% to 70.7%**.
+- Shuffling or randomizing messages produces an identical catastrophic collapse (win rates drop to 25.3%–33.3%).
+- The receivers (Commander and Defense) actively listen to the scout's transmitted token in `obs[52:70]` to steer their corridor movement toward the vulnerable generator. Without this signal, the team is blinded and stalls in draws.
+
+### 10.8 Visualizer Updates
+- In `visualization/battlefield.py`:
+  - Default COMM policy resolved to the best validated checkpoint: `artifacts/checkpoints/comm_best.pt`.
+  - For learned COMM mode, the battlefield renderer now displays raw token IDs (`[Token ID X]` or `Comm: Raw Token X`) instead of decoding into heuristic lane names.
+  - Presentation demo modes `[1] ORACLE`, `[2] SILENT`, `[3] COMM (PPO)`, and `[4] NO_COMM (PPO)` all verified functional.
+
+

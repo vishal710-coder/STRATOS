@@ -35,6 +35,8 @@ artifacts/experiments/*.json
 !artifacts/experiments/**/resumed_train_report.json
 !artifacts/experiments/**/sanity_train_report.json
 !artifacts/experiments/multiseed_candidate_evaluation_summary.json
+!artifacts/experiments/v4_finetuned/phase2_validation_selection.json
+!artifacts/experiments/v4_evaluation/heldout_evaluation_summary.json
 !artifacts/experiments/.gitkeep
 
 # Media files
