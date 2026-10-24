@@ -587,6 +587,49 @@ A rigorous diagnostic audit of the v4 experimental setup revealed key confoundin
 - **Why Defensive is the Hardest**:
   - The Defensive opponent stations guards around generators and turtle at base, creating high draw rates (48%–50%) and punishing incomplete assaults. Without proactive flank interception and sustained siege power, friendly units run out of the 300-step clock.
 
+---
+
+## Phase 2: Environment & Strategy Fixes (Behind Flags) & Decision Audit
+
+### 2.1 Implemented Mechanisms Behind Config Flags
+1. **Environment Fix 1 (`hq_regen`, default: `False`)**:
+   - Implemented in `environment/strategy_game.py` (lines 625–635).
+   - When enabled, friendly and enemy units within 60 px of their respective alive HQ regenerate `0.5 HP/step`.
+   - Default is strictly `False` to maintain comparison invariance with v4 baselines.
+2. **Environment Fix 2 (`supply_broadcast`, default: `False`)**:
+   - Implemented in `environment/strategy_game.py` (lines 412–417).
+   - When enabled, active supply drop coordinates `(x, y)` are announced in step `infos` (`infos[ag]["supply_drop_broadcast"]`).
+   - Default is strictly `False`.
+3. **Strategy Fix (`OracleV2Policy` in `agents/reference_policies.py`)**:
+   - Implemented heuristic improvements aimed at addressing Phase 1 failure modes:
+     - Low-HP retreat towards base (`ActionType.MOVE_BASE`) rather than blind threat fleeing.
+     - Flank interception: Defense prioritizes defending perimeter / intercepting wave when warning sensor is active.
+     - Coordinated retreat: Sole survivor retreats to defend base instead of suicide-charging 1v3.
+
+### 2.2 Validation Benchmark (Seeds 1000–1049, 150 Episodes per Condition)
+
+| Experimental Condition | Win Rate | Draw Rate | Loss Rate | Mean Reward | Mean Duration |
+|---|---|---|---|---|---|
+| **Oracle v1 (Default Env)** | **51.3%** | 31.3% | 17.3% | **+112.66** | 248.3 steps |
+| **Oracle v2 (Default Env)** | 14.7% | 85.3% | **0.0%** | +33.57 | 287.9 steps |
+| **Oracle v2 + HQ Regen** | 15.3% | 84.7% | **0.0%** | +35.60 | 287.8 steps |
+| **Best COMM (Default Env)** | 48.7% | 36.0% | 15.3% | +110.08 | 250.8 steps |
+| **Best COMM + HQ Regen** | **49.3%** | 35.3% | 15.3% | **+111.67** | 250.7 steps |
+
+### 2.3 Decision Rule Audit & Scientific Verdict
+- **Decision Rule**: Adopt `oracle_v2` into a new BC student `comm_bc_v5.pt` ONLY if it improves win rate by at least $\ge +5.0$ percentage points across all 3 opponents without increasing draw rate.
+- **Evaluation Findings**:
+  - `Oracle_v2` successfully drove the loss rate down to **0.0%** (zero losses across 150 episodes!).
+  - However, because low-HP retreat to base caused units to disengage from the weak lane siege, the team became overly passive.
+  - Draw rate exploded from **31.3% up to 85.3%** (+54.0 points), and overall win rate collapsed from **51.3% down to 14.7%** (-36.7 points).
+  - In a time-limited game (300 steps), over-valuing survival at the expense of decisive lane pressure converts wins into timeout draws.
+- **Formal Decision**:
+  - **REJECT ORACLE_V2**.
+  - **RETAIN ORACLE_V1** as the reference ground truth teacher.
+  - **RETAIN `artifacts/checkpoints/comm_bc_student.pt`** and `no_comm_bc_student.pt` for all downstream training, fine-tuning, and evaluation.
+  - All default environment configurations remain strictly invariant (`hq_regen=False`, `supply_broadcast=False`).
+
+
 
 
 
